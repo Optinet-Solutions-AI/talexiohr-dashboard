@@ -1,4 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin'
+
+export const dynamic = 'force-dynamic'
 import { Users, CalendarDays, ClipboardList } from 'lucide-react'
 
 export default async function DashboardPage() {

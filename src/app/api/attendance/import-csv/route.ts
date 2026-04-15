@@ -51,19 +51,22 @@ function parseCsv(text: string): CsvRow[] {
 
     if (!firstName || !lastName) continue
 
+    const validTime  = (v: string) => (v && v !== 'n/a' && /^\d{1,2}:\d{2}$/.test(v)) ? v : null
+    const validFloat = (v: string) => (v && v !== 'n/a') ? parseFloat(v) : null
+
     rows.push({
       date:        currentDate,
       firstName,
       lastName,
-      locationIn:  locationIn  || null,
-      latIn:       latInStr    ? parseFloat(latInStr)  : null,
-      lngIn:       lngInStr    ? parseFloat(lngInStr)  : null,
-      timeIn:      timeIn      || null,
-      locationOut: locationOut || null,
-      latOut:      latOutStr   ? parseFloat(latOutStr) : null,
-      lngOut:      lngOutStr   ? parseFloat(lngOutStr) : null,
-      timeOut:     timeOut     || null,
-      hours:       hours       || null,
+      locationIn:  (locationIn  && locationIn  !== 'n/a') ? locationIn  : null,
+      latIn:       validFloat(latInStr),
+      lngIn:       validFloat(lngInStr),
+      timeIn:      validTime(timeIn),
+      locationOut: (locationOut && locationOut !== 'n/a') ? locationOut : null,
+      latOut:      validFloat(latOutStr),
+      lngOut:      validFloat(lngOutStr),
+      timeOut:     validTime(timeOut),
+      hours:       (hours && hours !== 'n/a') ? hours : null,
       comments:    commentParts.join(',').trim() || null,
     })
   }
