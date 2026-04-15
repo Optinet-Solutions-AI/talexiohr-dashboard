@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { fetchTimeLogs } from '@/lib/talexio/attendance'
 import { format, eachDayOfInterval, parseISO } from 'date-fns'
 
@@ -73,7 +73,7 @@ function parseHoursString(s: string | null): number | null {
 // Sync a date range from Talexio → Supabase
 // ------------------------------------------------------------
 export async function syncDateRange(dateFrom: string, dateTo: string) {
-  const supabase = await createClient()
+  const supabase = createAdminClient()
 
   const timeLogs = await fetchTimeLogs(dateFrom, dateTo)
 
@@ -183,32 +183,31 @@ export interface CsvRow {
 }
 
 export async function saveCsvRows(rows: CsvRow[]) {
-  const supabase = await createClient()
+  const supabase = createAdminClient()
   let saved = 0
 
   for (const row of rows) {
     if (!row.firstName || !row.lastName || !row.date) continue
 
-    // Upsert employee (no talexio_id for CSV imports)
-    const { data: empRow } = await supabase
-      .from('employees')
-      .upsert(
-        { first_name: row.firstName, last_name: row.lastName },
-        { onConflict: 'talexio_id', ignoreDuplicates: false },
-      )
-      .select('id')
-      .single()
-
-    // If upsert fails (talexio_id conflict), find by name
-    const employeeId = empRow?.id ?? (await supabase
+    // Find or create employee by name (no talexio_id for CSV imports)
+    let { data: empRow } = await supabase
       .from('employees')
       .select('id')
       .eq('first_name', row.firstName)
       .eq('last_name', row.lastName)
-      .single()
-      .then(r => r.data?.id))
+      .maybeSingle()
 
-    if (!employeeId) continue
+    if (!empRow) {
+      const { data: newEmp } = await supabase
+        .from('employees')
+        .insert({ first_name: row.firstName, last_name: row.lastName })
+        .select('id')
+        .single()
+      empRow = newEmp
+    }
+
+    if (!empRow) continue
+    const employeeId = empRow.id
 
     const status = classifyStatus(row.locationIn, row.latIn, row.lngIn, row.comments)
 

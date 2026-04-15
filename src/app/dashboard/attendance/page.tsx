@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { format, subDays } from 'date-fns'
 import StatCards from '@/components/attendance/StatCards'
 import AttendanceFilters from '@/components/attendance/AttendanceFilters'
@@ -27,7 +27,7 @@ export default async function AttendancePage({ searchParams }: PageProps) {
   const page   = parseInt(sp.page ?? '1')
   const offset = (page - 1) * PAGE_SIZE
 
-  const supabase = await createClient()
+  const supabase = createAdminClient()
 
   // Fetch employees for filter dropdown
   const { data: employees } = await supabase

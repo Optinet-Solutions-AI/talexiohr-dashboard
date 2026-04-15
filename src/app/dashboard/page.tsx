@@ -1,8 +1,8 @@
-import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { Users, CalendarDays, ClipboardList } from 'lucide-react'
 
 export default async function DashboardPage() {
-  const supabase = await createClient()
+  const supabase = createAdminClient()
 
   const [{ count: employeeCount }, { count: attendanceCount }] = await Promise.all([
     supabase.from('employees').select('*', { count: 'exact', head: true }),
