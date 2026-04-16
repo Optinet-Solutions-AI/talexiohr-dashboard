@@ -73,7 +73,7 @@ async function fetchTimeLogs(token: string, dateFrom: string, dateTo: string): P
           }
         }
       }`,
-      { params: { from: dateFrom, to: dateTo, selectedUnitIds: [], selectedRoomIds: [], selectedEmployeeIds: [] }, pageNumber: page, pageSize: PAGE_SIZE }
+      { params: { dateFrom, dateTo, employeeIds: [] }, pageNumber: page, pageSize: PAGE_SIZE }
     )
     const json = await res.json()
     if (json.errors?.length) return { logs: [], error: json.errors.map((e: { message: string }) => e.message).join(', ') }
@@ -97,10 +97,10 @@ async function fetchLeave(token: string, dateFrom: string, dateTo: string): Prom
         leave {
           ... on EmployeeLeave {
             id
-            dateFrom
-            dateTo
-            leaveType { name }
-            status
+            date
+            from
+            to
+            leaveTypeName
             hours
           }
         }
@@ -119,20 +119,20 @@ async function fetchLeave(token: string, dateFrom: string, dateTo: string): Prom
   const employees = json.data?.employees ?? []
   for (const emp of employees) {
     for (const leave of emp.leave ?? []) {
-      if (leave.status?.toLowerCase() !== 'approved') continue
-      const leaveFrom = leave.dateFrom
-      const leaveTo = leave.dateTo || leave.dateFrom
-      if (!leaveFrom) continue
+      // Use 'date' field (single day) or 'from'/'to' for range
+      const leaveDate = leave.date ?? (leave.from ? leave.from.slice(0, 10) : null)
+      const leaveTo = leave.to ? leave.to.slice(0, 10) : leaveDate
+      if (!leaveDate) continue
       // Only include leave days within our date range
-      const start = leaveFrom > dateFrom ? leaveFrom : dateFrom
-      const end = leaveTo < dateTo ? leaveTo : dateTo
+      const start = leaveDate > dateFrom ? leaveDate : dateFrom
+      const end = (leaveTo ?? leaveDate) < dateTo ? (leaveTo ?? leaveDate) : dateTo
       // Generate a record per day
       const d = new Date(start + 'T00:00:00')
       const endD = new Date(end + 'T00:00:00')
       while (d <= endD) {
         const day = d.getDay()
         if (day >= 1 && day <= 5) { // weekdays only
-          const typeName = (leave.leaveType?.name ?? '').toLowerCase()
+          const typeName = (leave.leaveTypeName ?? '').toLowerCase()
           entries.push({
             employeeId: emp.id,
             employeeName: emp.fullName,
