@@ -70,8 +70,8 @@ export async function triggerExport(token: string, dateFrom: string, dateTo: str
 
   const json = await res.json()
 
-  // Response is likely just an ID number or { id: number }
   if (typeof json === 'number') return json
+  if (json.jobId) return json.jobId
   if (json.id) return json.id
   if (json.error) throw new Error(`Export trigger failed: ${json.error}`)
 
