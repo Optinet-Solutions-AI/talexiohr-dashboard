@@ -446,3 +446,43 @@ None blocking implementation. Items to validate during implementation:
 - Every request is logged to `ask_ai_logs` with tool trace.
 - The SQL escape hatch cannot write, cannot read unauthorized tables, cannot DoS the database, and cannot execute multi-statement queries — verified by negative tests.
 - Relevance guard still rejects non-HR questions (regression check against current behavior).
+
+## 13. Follow-up Work
+
+Each item is deferred from §10, not discarded. Listed roughly in recommended sequence, each a candidate for its own brainstorm → spec → plan cycle.
+
+### 13.1 STT auto-send on silence detection
+
+- **Trigger:** as soon as client UX feedback warrants it (user already flagged this).
+- **Scope:** frontend-only tweak to [src/app/dashboard/ask/page.tsx](../../../src/app/dashboard/ask/page.tsx). Detect silence in the Web Speech API stream (or fixed timeout after last transcript update) and auto-submit.
+- **Dependencies:** none. Does not touch `/api/ask`.
+- **Rough effort:** 1-2 hours.
+
+### 13.2 Answer streaming (Server-Sent Events)
+
+- **Trigger:** when users notice latency (multi-tool questions can take 3-8s with a visible spinner only).
+- **Scope:** change `/api/ask` route handler to return a streaming response; update the client to render tokens as they arrive. The agent loop in [src/lib/ask/agent.ts](../../../src/lib/ask/agent.ts) is already compatible.
+- **Dependencies:** this spec shipped.
+- **Rough effort:** half a day.
+
+### 13.3 Savable / shareable questions
+
+- **Trigger:** when clients start asking for this — the "Saved (0)" tab already exists in the UI.
+- **Scope:** new table `ask_ai_saved_questions`, CRUD endpoints, UI wiring. Should share the `ask_ai_logs` row as its source so saving is just "pin this log row."
+- **Dependencies:** this spec shipped (needs `ask_ai_logs` table to exist).
+- **Rough effort:** 1 day.
+
+### 13.4 Vector RAG / `search_documents` tool
+
+- **Trigger:** when the client actually starts providing unstructured data (policy PDFs, free-text comments in attendance records, HR notes, emails). Do not build on speculation.
+- **Scope:** new migration for a pgvector-backed `documents` table, an ingestion pipeline (PDF/text → chunks → embeddings), a new `search_documents` tool file in [src/lib/ask/tools/](../../../src/lib/ask/tools/), and one line in `tools/index.ts` to register it.
+- **Dependencies:** this spec shipped. Requires deciding on embedding model (`text-embedding-3-small` is the current default choice), chunk strategy, and ingestion triggers.
+- **Rough effort:** 3-5 days for the minimum viable version.
+- **Note:** the agent loop deliberately makes this additive — no existing tool, the loop itself, or the safety model needs to change.
+
+### 13.5 Multi-turn conversations
+
+- **Trigger:** when users request follow-up questions ("drill into that", "what about last quarter instead").
+- **Scope:** significant. Requires decisions on: how much history to replay to the model (token cost grows), how to detect topic switches, whether to persist conversations in the DB, whether the UI surfaces past turns or starts fresh each time.
+- **Dependencies:** this spec shipped.
+- **Rough effort:** 3-5 days including UX work. Deserves its own full brainstorm — the design decisions above are non-trivial.
