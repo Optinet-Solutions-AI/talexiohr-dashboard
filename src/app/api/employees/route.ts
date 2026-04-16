@@ -3,7 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 
 // PATCH — edit employee fields
 export async function PATCH(req: NextRequest) {
-  const { id, first_name, last_name, talexio_id, unit, group_type, job_schedule, position } = await req.json()
+  const { id, first_name, last_name, talexio_id, unit, group_type, job_schedule, position, excluded } = await req.json()
   if (!id) return NextResponse.json({ error: 'Employee id required' }, { status: 400 })
 
   const updates: Record<string, unknown> = {}
@@ -19,6 +19,7 @@ export async function PATCH(req: NextRequest) {
   }
   if (job_schedule !== undefined) updates.job_schedule = job_schedule || null
   if (position !== undefined) updates.position = position || null
+  if (excluded !== undefined) updates.excluded = !!excluded
 
   if (Object.keys(updates).length === 0) return NextResponse.json({ error: 'No fields to update' }, { status: 400 })
 

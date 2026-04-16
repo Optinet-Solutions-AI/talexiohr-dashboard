@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Pencil, Trash2, Check, X, Loader2 } from 'lucide-react'
+import { Pencil, Trash2, Check, X, Loader2, EyeOff, Eye } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 
 const GROUPS = ['office_malta', 'remote', 'unclassified'] as const
@@ -21,6 +21,7 @@ interface Employee {
   group_type: string | null
   job_schedule: string | null
   position: string | null
+  excluded: boolean | null
 }
 
 export default function EmployeeTable({ employees }: { employees: Employee[] }) {
@@ -29,7 +30,20 @@ export default function EmployeeTable({ employees }: { employees: Employee[] }) 
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState<string | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
+  const [toggling, setToggling] = useState<string | null>(null)
   const router = useRouter()
+
+  async function toggleExclude(id: string, currentlyExcluded: boolean) {
+    setToggling(id)
+    try {
+      await fetch('/api/employees', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, excluded: !currentlyExcluded }),
+      })
+      router.refresh()
+    } finally { setToggling(null) }
+  }
 
   function startEdit(emp: Employee) {
     const names = emp.full_name.split(' ')
@@ -131,15 +145,24 @@ export default function EmployeeTable({ employees }: { employees: Employee[] }) 
                 )
               }
 
+              const isExcluded = !!emp.excluded
               return (
-                <tr key={emp.id} className="hover:bg-slate-50/50 transition-colors">
-                  <td className="px-4 py-2.5 font-medium text-slate-700">{emp.full_name}</td>
+                <tr key={emp.id} className={`hover:bg-slate-50/50 transition-colors ${isExcluded ? 'opacity-50' : ''}`}>
+                  <td className="px-4 py-2.5">
+                    <span className={`font-medium ${isExcluded ? 'text-slate-500 line-through' : 'text-slate-700'}`}>{emp.full_name}</span>
+                    {isExcluded && <span className="ml-1.5 text-[10px] text-red-500 font-medium">EXCLUDED</span>}
+                  </td>
                   <td className="px-4 py-2.5 text-slate-600 font-mono text-[11px]">{emp.talexio_id ?? '—'}</td>
                   <td className="px-4 py-2.5"><span className={`inline-flex items-center rounded px-2 py-0.5 text-[11px] font-medium ${g.cls}`}>{g.label}</span></td>
                   <td className="px-4 py-2.5 text-slate-500">{emp.unit ?? '—'}</td>
                   <td className="px-4 py-2.5 text-slate-500">{emp.job_schedule ?? '—'}</td>
                   <td className="px-4 py-2.5">
                     <div className="flex items-center gap-1">
+                      <button onClick={() => toggleExclude(emp.id, isExcluded)} disabled={toggling === emp.id}
+                        className={`p-1 rounded ${isExcluded ? 'hover:bg-indigo-50 text-indigo-500' : 'hover:bg-amber-50 text-slate-500 hover:text-amber-600'}`}
+                        title={isExcluded ? 'Include in dashboard' : 'Exclude from dashboard'}>
+                        {toggling === emp.id ? <Loader2 size={13} className="animate-spin" /> : isExcluded ? <Eye size={13} /> : <EyeOff size={13} />}
+                      </button>
                       <button onClick={() => startEdit(emp)} className="p-1 rounded hover:bg-slate-100 text-slate-500" title="Edit">
                         <Pencil size={13} />
                       </button>
@@ -195,12 +218,21 @@ export default function EmployeeTable({ employees }: { employees: Employee[] }) 
             )
           }
 
+          const isExcluded = !!emp.excluded
           return (
-            <div key={emp.id} className="px-4 py-3 space-y-1">
+            <div key={emp.id} className={`px-4 py-3 space-y-1 ${isExcluded ? 'opacity-50' : ''}`}>
               <div className="flex items-center justify-between">
-                <span className="text-xs font-medium text-slate-700">{emp.full_name}</span>
+                <div>
+                  <span className={`text-xs font-medium ${isExcluded ? 'text-slate-500 line-through' : 'text-slate-700'}`}>{emp.full_name}</span>
+                  {isExcluded && <span className="ml-1 text-[9px] text-red-500 font-medium">EXCLUDED</span>}
+                </div>
                 <div className="flex items-center gap-1">
                   <span className={`inline-flex items-center rounded px-2 py-0.5 text-[10px] font-medium ${g.cls}`}>{g.label}</span>
+                  <button onClick={() => toggleExclude(emp.id, isExcluded)} disabled={toggling === emp.id}
+                    className={`p-1 ${isExcluded ? 'text-indigo-500' : 'text-slate-500'}`}
+                    title={isExcluded ? 'Include' : 'Exclude'}>
+                    {toggling === emp.id ? <Loader2 size={12} className="animate-spin" /> : isExcluded ? <Eye size={12} /> : <EyeOff size={12} />}
+                  </button>
                   <button onClick={() => startEdit(emp)} className="p-1 text-slate-500"><Pencil size={12} /></button>
                   {confirmDelete === emp.id ? (
                     <div className="flex items-center gap-1">

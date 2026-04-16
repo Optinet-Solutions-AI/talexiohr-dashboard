@@ -8,14 +8,18 @@ export default async function LeavePage() {
   const to   = format(new Date(), 'yyyy-MM-dd')
   const from = format(subDays(new Date(), 29), 'yyyy-MM-dd')
 
+  // Get active employee IDs to filter out excluded
+  const { data: activeEmps } = await supabase.from('employees').select('id').eq('excluded', false)
+  const activeIds = (activeEmps ?? []).map(e => e.id)
+
   const { data: records } = await supabase
     .from('attendance_records')
     .select('id, date, status, comments, hours_worked, employees!inner(id, full_name, unit)')
-    .in('status', ['vacation', 'sick']).gte('date', from).lte('date', to)
+    .in('status', ['vacation', 'sick']).in('employee_id', activeIds).gte('date', from).lte('date', to)
     .order('date', { ascending: false })
 
   const { data: summary } = await supabase
-    .from('attendance_records').select('status').in('status', ['vacation', 'sick']).gte('date', from).lte('date', to)
+    .from('attendance_records').select('status').in('status', ['vacation', 'sick']).in('employee_id', activeIds).gte('date', from).lte('date', to)
 
   const vacationDays = summary?.filter(r => r.status === 'vacation').length ?? 0
   const sickDays     = summary?.filter(r => r.status === 'sick').length ?? 0

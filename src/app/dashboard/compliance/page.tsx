@@ -24,7 +24,7 @@ export default async function CompliancePage({ searchParams }: PageProps) {
   const from = format(monthStart, 'yyyy-MM-dd')
   const to = format(monthEnd, 'yyyy-MM-dd')
 
-  const { data: employees } = await supabase.from('employees').select('id, full_name, group_type, unit').eq('group_type', 'office_malta').order('last_name')
+  const { data: employees } = await supabase.from('employees').select('id, full_name, group_type, unit').eq('group_type', 'office_malta').eq('excluded', false).order('last_name')
   const { data: records } = await supabase.from('attendance_records').select('employee_id, date, status').gte('date', from).lte('date', to)
 
   const emps: Emp[] = employees ?? []

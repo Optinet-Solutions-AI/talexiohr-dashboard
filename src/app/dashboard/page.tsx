@@ -99,7 +99,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   const from = sp.from ?? defaultFrom
   const to   = sp.to ?? today
 
-  const { data: employees } = await supabase.from('employees').select('id, full_name').order('last_name')
+  const { data: employees } = await supabase.from('employees').select('id, full_name').eq('excluded', false).order('last_name')
 
   let query = supabase
     .from('attendance_records')
