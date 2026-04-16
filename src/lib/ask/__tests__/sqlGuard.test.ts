@@ -58,6 +58,17 @@ describe('validateReadonlySql', () => {
     expect(r.ok).toBe(false)
   })
 
+  it('rejects current_setting', () => {
+    const r = validateReadonlySql("SELECT current_setting('server_version')")
+    expect(r.ok).toBe(false)
+    expect(r.reason).toMatch(/function/i)
+  })
+
+  it('rejects inet_server_addr', () => {
+    const r = validateReadonlySql('SELECT inet_server_addr()')
+    expect(r.ok).toBe(false)
+  })
+
   it('rejects a CTE that writes', () => {
     const r = validateReadonlySql(
       "WITH x AS (INSERT INTO employees (first_name) VALUES ('x') RETURNING id) SELECT * FROM x"

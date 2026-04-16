@@ -5,6 +5,10 @@ const ALLOWED_TABLES = new Set(['employees', 'attendance_records'])
 const BLOCKED_FUNCTIONS = new Set([
   'pg_sleep', 'pg_read_file', 'pg_ls_dir', 'pg_read_server_files',
   'pg_terminate_backend', 'lo_import', 'lo_export', 'copy',
+  // information-leak functions
+  'current_setting', 'pg_postmaster_start_time', 'pg_current_logfile',
+  'pg_read_binary_file', 'inet_server_addr', 'inet_server_port',
+  'pg_conf_load_time',
 ])
 
 export type ValidationResult =
