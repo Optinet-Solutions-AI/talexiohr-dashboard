@@ -9,14 +9,14 @@ export const dynamic = 'force-dynamic'
 
 const STATUS_COLORS: Record<string, string> = {
   office:      '#4f46e5', // indigo-600
-  wfh:         '#818cf8', // indigo-400
-  remote:      '#a5b4fc', // indigo-300
-  vacation:    '#c7d2fe', // indigo-200
-  sick:        '#c7d2fe',
-  no_clocking: '#ddd6fe', // violet-200
-  unknown:     '#ede9fe', // violet-100
-  active:      '#818cf8',
-  broken:      '#a5b4fc',
+  wfh:         '#38bdf8', // sky-400
+  remote:      '#2dd4bf', // teal-400
+  vacation:    '#a78bfa', // violet-400
+  sick:        '#f87171', // red-400
+  no_clocking: '#cbd5e1', // slate-300
+  unknown:     '#e2e8f0', // slate-200
+  active:      '#f59e0b', // amber-500
+  broken:      '#fb923c', // orange-400
 }
 
 interface PageProps {

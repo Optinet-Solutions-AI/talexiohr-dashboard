@@ -4,14 +4,14 @@ import { useState } from 'react'
 
 const STATUS_CONFIG: Record<string, { color: string; label: string }> = {
   office:      { color: 'bg-indigo-600',  label: 'Office' },
-  wfh:         { color: 'bg-indigo-300',  label: 'WFH' },
-  remote:      { color: 'bg-indigo-200',  label: 'Remote' },
-  vacation:    { color: 'bg-violet-300',  label: 'Leave' },
-  sick:        { color: 'bg-red-300',     label: 'Sick' },
-  no_clocking: { color: 'bg-slate-200',   label: 'No Clocking' },
-  unknown:     { color: 'bg-slate-100',   label: 'Unknown' },
-  active:      { color: 'bg-amber-400',   label: 'Active (no clock-out)' },
-  broken:      { color: 'bg-amber-300',   label: 'Broken' },
+  wfh:         { color: 'bg-sky-400',     label: 'WFH' },
+  remote:      { color: 'bg-teal-400',    label: 'Remote' },
+  vacation:    { color: 'bg-violet-400',  label: 'Leave' },
+  sick:        { color: 'bg-red-400',     label: 'Sick' },
+  no_clocking: { color: 'bg-slate-300',   label: 'No Clocking' },
+  unknown:     { color: 'bg-slate-200',   label: 'Unknown' },
+  active:      { color: 'bg-amber-500',   label: 'No Clock-out' },
+  broken:      { color: 'bg-orange-400',  label: 'Broken Clocking' },
 }
 
 export interface GridDay {
@@ -137,8 +137,8 @@ export default function AttendanceGrid({ employees, dates }: { employees: GridEm
           </div>
         ))}
         <div className="flex items-center gap-1.5">
-          <div className="w-3 h-3 rounded-[3px] bg-slate-200 ring-1 ring-red-400 ring-offset-1" />
-          <span className="text-[10px] text-red-500">Flag</span>
+          <div className="w-3 h-3 rounded-[3px] bg-slate-300 ring-1 ring-red-400 ring-offset-1" />
+          <span className="text-[10px] text-red-500">Location Mismatch</span>
         </div>
       </div>
 
