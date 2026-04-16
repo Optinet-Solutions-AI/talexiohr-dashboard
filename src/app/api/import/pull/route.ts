@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { loginTalexio, triggerExport, pollBackgroundJob, downloadExportFile } from '@/lib/talexio/session'
+import { triggerExport, pollBackgroundJob, downloadExportFile } from '@/lib/talexio/session'
 import { format } from 'date-fns'
 
 const OFFICE_LAT = 35.9222072, OFFICE_LNG = 14.4878368, OFFICE_KM = 0.12
@@ -65,11 +65,9 @@ function parseExportCsv(text: string) {
 
 export async function POST(req: NextRequest) {
   try {
-    const { dateFrom, dateTo } = await req.json()
+    const { dateFrom, dateTo, token } = await req.json()
     if (!dateFrom || !dateTo) return NextResponse.json({ error: 'dateFrom and dateTo required' }, { status: 400 })
-
-    // 1. Login to get Bearer token
-    const token = await loginTalexio()
+    if (!token) return NextResponse.json({ error: 'Bearer token is required' }, { status: 400 })
 
     // 2. Trigger the export
     const jobId = await triggerExport(token, dateFrom, dateTo)
