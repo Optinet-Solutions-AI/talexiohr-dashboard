@@ -239,6 +239,26 @@ export default function DashboardFilters({
           Today
         </button>
 
+        {/* Separator */}
+        <div className="h-6 w-px bg-gray-200" />
+
+        {/* Custom date range */}
+        <div className="flex items-center gap-2">
+          <input
+            type="date"
+            value={from}
+            onChange={e => { setFrom(e.target.value); navigate(e.target.value, to, period, empId) }}
+            className="rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          <span className="text-xs text-gray-400">to</span>
+          <input
+            type="date"
+            value={to}
+            onChange={e => { setTo(e.target.value); navigate(from, e.target.value, period, empId) }}
+            className="rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+
         {/* Spacer pushes employee search to the right */}
         <div className="flex-1" />
 
