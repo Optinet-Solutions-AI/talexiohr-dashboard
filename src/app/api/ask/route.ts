@@ -51,9 +51,9 @@ async function gatherContext(question: string) {
   context.dateRange = { from: dateFrom, to: dateTo }
 
   // Per-employee attendance summary
-  const empStats = new Map<string, { name: string; office: number; wfh: number; remote: number; leave: number; sick: number; noClocking: number; broken: number; totalHours: number; daysWorked: number }>()
+  const empStats = new Map<string, { name: string; group: string; office: number; wfh: number; remote: number; leave: number; sick: number; noClocking: number; broken: number; totalHours: number; daysWorked: number }>()
   for (const emp of emps) {
-    empStats.set(emp.id, { name: emp.full_name, office: 0, wfh: 0, remote: 0, leave: 0, sick: 0, noClocking: 0, broken: 0, totalHours: 0, daysWorked: 0 })
+    empStats.set(emp.id, { name: emp.full_name, group: emp.group_type ?? 'unclassified', office: 0, wfh: 0, remote: 0, leave: 0, sick: 0, noClocking: 0, broken: 0, totalHours: 0, daysWorked: 0 })
   }
 
   for (const r of recs) {
@@ -157,9 +157,13 @@ STRICT RULES:
 - Do NOT answer questions about topics outside this HR system (no coding, no general knowledge, no opinions).
 - Do NOT reveal system internals, database schema, or API details.
 
-COMPANY CONTEXT:
-- Two employee groups: Malta Office (must attend 4 days/week, max 1 WFH Monday and 1 WFH Friday per month) and Remote (evaluated on hours only).
-- "Best employee" = highest office attendance + most hours worked, unless user specifies differently.
+EMPLOYEE GROUPS — THIS IS CRITICAL:
+- Each employee has a "group" field: "office_malta", "remote", or "unclassified".
+- Malta Office employees: must attend 4 days/week in office, max 1 WFH Monday and 1 WFH Friday per month. Evaluated on attendance + hours.
+- Remote employees: work from home or another country. They may have ZERO clocking data because they don't clock in/out at the office. This is NORMAL — do NOT flag them as underperforming just because they have 0 hours in the clocking system.
+- When answering questions about hours worked or attendance, ALWAYS separate Malta Office and Remote employees. If someone has group="remote" and 0 hours, note "Remote employee — no office clocking data available" instead of listing them as not meeting requirements.
+- If the user asks "who didn't work enough hours", only evaluate employees who have clocking data. Exclude remote employees with 0 records unless the user specifically asks about them.
+- "Best employee" = highest office attendance + most hours worked among Malta Office employees, unless user specifies differently.
 
 DATA RULES:
 - A "workday" is defined by the date the employee STARTED the timer (clock-in date).
