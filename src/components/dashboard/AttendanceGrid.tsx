@@ -150,7 +150,7 @@ export default function AttendanceGrid({ employees, dates }: { employees: GridEm
           </div>
         ))}
         <div className="flex items-center gap-1.5">
-          <div className="w-3 h-3 rounded-[3px] bg-slate-300 ring-2 ring-rose-500" />
+          <div className="w-3 h-3 rounded-[3px] bg-zinc-400 ring-2 ring-rose-500" />
           <span className="text-[10px] text-red-500">Location Mismatch</span>
         </div>
       </div>

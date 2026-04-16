@@ -13,8 +13,8 @@ const STATUS_COLORS: Record<string, string> = {
   remote:      '#2dd4bf', // teal-400
   vacation:    '#a78bfa', // violet-400
   sick:        '#f87171', // red-400
-  no_clocking: '#cbd5e1', // slate-300
-  unknown:     '#e2e8f0', // slate-200
+  no_clocking: '#a1a1aa', // zinc-400
+  unknown:     '#a1a1aa', // zinc-400
   active:      '#f59e0b', // amber-500
   broken:      '#fb923c', // orange-400
 }
