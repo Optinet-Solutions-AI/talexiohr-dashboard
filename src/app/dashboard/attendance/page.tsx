@@ -1,12 +1,12 @@
 import { createAdminClient } from '@/lib/supabase/admin'
-import { format, subDays } from 'date-fns'
+import { format } from 'date-fns'
 import StatCards from '@/components/attendance/StatCards'
 import AttendanceFilters from '@/components/attendance/AttendanceFilters'
 import StatusBadge from '@/components/attendance/StatusBadge'
 import CsvImport from '@/components/attendance/CsvImport'
 import { CalendarDays, Clock } from 'lucide-react'
 
-const PAGE_SIZE = 50
+const PAGE_SIZE = 20
 
 interface PageProps {
   searchParams: Promise<{
@@ -20,8 +20,9 @@ interface PageProps {
 
 export default async function AttendancePage({ searchParams }: PageProps) {
   const sp     = await searchParams
-  const from   = sp.from     ?? format(subDays(new Date(), 13), 'yyyy-MM-dd')
-  const to     = sp.to       ?? format(new Date(), 'yyyy-MM-dd')
+  const today  = format(new Date(), 'yyyy-MM-dd')
+  const from   = sp.from     ?? today
+  const to     = sp.to       ?? today
   const empId  = sp.employee ?? ''
   const status = sp.status   ?? ''
   const page   = parseInt(sp.page ?? '1')
@@ -161,29 +162,52 @@ export default async function AttendancePage({ searchParams }: PageProps) {
         )}
 
         {/* Pagination */}
-        {totalPages > 1 && (
-          <div className="px-4 py-3 border-t border-gray-100 flex items-center justify-between text-sm text-gray-500">
-            <span>Page {page} of {totalPages}</span>
-            <div className="flex gap-2">
-              {page > 1 && (
-                <a
-                  href={`?from=${from}&to=${to}${empId ? `&employee=${empId}` : ''}${status ? `&status=${status}` : ''}&page=${page - 1}`}
-                  className="px-3 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
-                >
-                  Previous
-                </a>
-              )}
-              {page < totalPages && (
-                <a
-                  href={`?from=${from}&to=${to}${empId ? `&employee=${empId}` : ''}${status ? `&status=${status}` : ''}&page=${page + 1}`}
-                  className="px-3 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
-                >
-                  Next
-                </a>
-              )}
+        {totalPages > 1 && (() => {
+          const baseHref = `?from=${from}&to=${to}${empId ? `&employee=${empId}` : ''}${status ? `&status=${status}` : ''}`
+          // Show up to 5 page numbers centered on current page
+          const startPage = Math.max(1, page - 2)
+          const endPage = Math.min(totalPages, startPage + 4)
+          const pages = Array.from({ length: endPage - startPage + 1 }, (_, i) => startPage + i)
+
+          return (
+            <div className="px-4 py-3 border-t border-gray-100 flex items-center justify-between text-sm text-gray-500">
+              <span>
+                {offset + 1}–{Math.min(offset + PAGE_SIZE, count ?? 0)} of {count} records
+              </span>
+              <div className="flex items-center gap-1">
+                {page > 1 && (
+                  <a
+                    href={`${baseHref}&page=${page - 1}`}
+                    className="px-2.5 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors text-xs"
+                  >
+                    Prev
+                  </a>
+                )}
+                {pages.map(p => (
+                  <a
+                    key={p}
+                    href={`${baseHref}&page=${p}`}
+                    className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                      p === page
+                        ? 'bg-blue-600 text-white border border-blue-600'
+                        : 'border border-gray-200 hover:bg-gray-50 text-gray-600'
+                    }`}
+                  >
+                    {p}
+                  </a>
+                ))}
+                {page < totalPages && (
+                  <a
+                    href={`${baseHref}&page=${page + 1}`}
+                    className="px-2.5 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors text-xs"
+                  >
+                    Next
+                  </a>
+                )}
+              </div>
             </div>
-          </div>
-        )}
+          )
+        })()}
       </div>
     </div>
   )
