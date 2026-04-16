@@ -1,12 +1,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
+import EmployeeTable from '@/components/employees/EmployeeTable'
 
 export const dynamic = 'force-dynamic'
-
-const GROUP_STYLE: Record<string, { label: string; cls: string }> = {
-  office_malta: { label: 'Malta Office', cls: 'bg-indigo-600 text-white' },
-  remote:       { label: 'Remote',       cls: 'bg-indigo-100 text-indigo-700' },
-  unclassified: { label: 'Unclassified', cls: 'bg-slate-100 text-slate-600' },
-}
 
 export default async function EmployeesPage() {
   const supabase = createAdminClient()
@@ -44,7 +39,7 @@ export default async function EmployeesPage() {
       <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
         <div className="px-4 py-2.5 border-b border-slate-100 flex items-center justify-between">
           <p className="text-xs text-slate-600">{emps.length} employees</p>
-          <a href="/dashboard/settings" className="text-xs text-slate-500 hover:text-slate-700">Manage groups</a>
+          <a href="/dashboard/settings" className="text-xs text-indigo-600 hover:underline">Manage groups</a>
         </div>
 
         {emps.length === 0 ? (
@@ -52,53 +47,7 @@ export default async function EmployeesPage() {
             <p className="text-slate-600 text-sm">No employees yet</p>
           </div>
         ) : (
-          <>
-            <div className="hidden sm:block overflow-x-auto">
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="bg-slate-50 text-left">
-                    <th className="px-4 py-2.5 font-medium text-slate-600 text-[10px] uppercase tracking-wider">Name</th>
-                    <th className="px-4 py-2.5 font-medium text-slate-600 text-[10px] uppercase tracking-wider">Code</th>
-                    <th className="px-4 py-2.5 font-medium text-slate-600 text-[10px] uppercase tracking-wider">Group</th>
-                    <th className="px-4 py-2.5 font-medium text-slate-600 text-[10px] uppercase tracking-wider">Unit</th>
-                    <th className="px-4 py-2.5 font-medium text-slate-600 text-[10px] uppercase tracking-wider">Schedule</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-50">
-                  {emps.map(emp => {
-                    const g = GROUP_STYLE[emp.group_type ?? 'unclassified'] ?? GROUP_STYLE.unclassified
-                    return (
-                      <tr key={emp.id} className="hover:bg-slate-50/50 transition-colors">
-                        <td className="px-4 py-2.5 font-medium text-slate-700">{emp.full_name}</td>
-                        <td className="px-4 py-2.5 text-slate-600 font-mono text-[11px]">{emp.talexio_id ?? '—'}</td>
-                        <td className="px-4 py-2.5"><span className={`inline-flex items-center rounded px-2 py-0.5 text-[11px] font-medium ${g.cls}`}>{g.label}</span></td>
-                        <td className="px-4 py-2.5 text-slate-500">{emp.unit ?? '—'}</td>
-                        <td className="px-4 py-2.5 text-slate-600">{emp.job_schedule ?? '—'}</td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
-
-            <div className="sm:hidden divide-y divide-slate-100">
-              {emps.map(emp => {
-                const g = GROUP_STYLE[emp.group_type ?? 'unclassified'] ?? GROUP_STYLE.unclassified
-                return (
-                  <div key={emp.id} className="px-4 py-3 space-y-1">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-medium text-slate-700">{emp.full_name}</span>
-                      <span className={`inline-flex items-center rounded px-2 py-0.5 text-[10px] font-medium ${g.cls}`}>{g.label}</span>
-                    </div>
-                    <div className="flex items-center gap-3 text-[11px] text-slate-600">
-                      <span>{emp.talexio_id ?? '—'}</span>
-                      <span>{emp.unit ?? '—'}</span>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          </>
+          <EmployeeTable employees={emps} />
         )}
       </div>
     </div>
