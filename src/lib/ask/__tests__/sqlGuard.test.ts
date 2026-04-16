@@ -16,7 +16,7 @@ describe('validateReadonlySql', () => {
 
   it('rejects INSERT', () => {
     const r = validateReadonlySql("INSERT INTO employees (first_name) VALUES ('x')")
-    expect(r.ok).toBe(false)
+    if (r.ok) throw new Error('expected validation to fail')
     expect(r.reason).toMatch(/SELECT/i)
   })
 
@@ -37,19 +37,19 @@ describe('validateReadonlySql', () => {
 
   it('rejects multiple statements', () => {
     const r = validateReadonlySql('SELECT 1; DROP TABLE employees')
-    expect(r.ok).toBe(false)
+    if (r.ok) throw new Error('expected validation to fail')
     expect(r.reason).toMatch(/one statement|single/i)
   })
 
   it('rejects tables outside the whitelist', () => {
     const r = validateReadonlySql('SELECT * FROM ask_ai_logs')
-    expect(r.ok).toBe(false)
+    if (r.ok) throw new Error('expected validation to fail')
     expect(r.reason).toMatch(/allowed|whitelist|table/i)
   })
 
   it('rejects pg_sleep', () => {
     const r = validateReadonlySql("SELECT pg_sleep(60)")
-    expect(r.ok).toBe(false)
+    if (r.ok) throw new Error('expected validation to fail')
     expect(r.reason).toMatch(/function/i)
   })
 
@@ -60,7 +60,7 @@ describe('validateReadonlySql', () => {
 
   it('rejects current_setting', () => {
     const r = validateReadonlySql("SELECT current_setting('server_version')")
-    expect(r.ok).toBe(false)
+    if (r.ok) throw new Error('expected validation to fail')
     expect(r.reason).toMatch(/function/i)
   })
 
