@@ -6,16 +6,7 @@ export default function ImportPage() {
     <div className="space-y-5 max-w-3xl mx-auto">
       <div>
         <h1 className="text-xl font-bold text-slate-800">Import Data</h1>
-        <p className="text-xs text-slate-600 mt-0.5">Pull from Talexio API or upload CSV files</p>
-      </div>
-
-      <TalexioPull />
-
-      <div className="relative">
-        <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-200" /></div>
-        <div className="relative flex justify-center">
-          <span className="bg-slate-50 px-3 text-xs text-slate-500">or upload CSV files</span>
-        </div>
+        <p className="text-xs text-slate-600 mt-0.5">Upload CSV files from Talexio reports</p>
       </div>
 
       <ImportUpload
@@ -29,6 +20,15 @@ export default function ImportPage() {
         title="Leave & Sick"
         description="Upload the Talexio Leave/Sick CSV export. Only approved entries are imported."
       />
+
+      <div className="relative">
+        <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-200" /></div>
+        <div className="relative flex justify-center">
+          <span className="bg-slate-50 px-3 text-xs text-slate-500">or pull directly from API</span>
+        </div>
+      </div>
+
+      <TalexioPull />
     </div>
   )
 }
