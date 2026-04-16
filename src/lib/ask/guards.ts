@@ -45,15 +45,16 @@ export async function checkRateLimit(
   if (!userId) return { allowed: true }
 
   const oneHourAgo = new Date(Date.now() - 3600_000).toISOString()
-  const { count, error } = await supabase
+  const res = await supabase
     .from('ask_ai_logs')
     .select('*', { count: 'exact', head: true })
     .eq('user_id', userId)
-    .gt('created_at', oneHourAgo) as unknown as { count: number; error: null | { message: string } }
+    .gt('created_at', oneHourAgo)
 
-  if (error) throw new Error(`Rate limit check failed: ${error.message}`)
+  if (res.error) throw new Error(`Rate limit check failed: ${res.error.message}`)
+  if (res.count === null) throw new Error('Rate limit check returned null count')
 
-  if ((count ?? 0) >= RATE_LIMIT_PER_HOUR) {
+  if (res.count >= RATE_LIMIT_PER_HOUR) {
     return { allowed: false, retryAfterSeconds: 3600 }
   }
   return { allowed: true }

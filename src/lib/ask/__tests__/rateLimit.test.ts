@@ -6,7 +6,8 @@ function makeSupabase(count: number) {
     select: vi.fn().mockReturnThis(),
     eq: vi.fn().mockReturnThis(),
     gt: vi.fn().mockReturnThis(),
-    then: (resolve: (v: { count: number; error: null }) => void) => resolve({ count, error: null }),
+    then: (resolve: (v: { data: null; count: number; error: null; status: number; statusText: string }) => void) =>
+      resolve({ data: null, count, error: null, status: 200, statusText: 'OK' }),
   }
   const from = vi.fn().mockReturnValue(chain)
   return { from } as unknown as ReturnType<typeof import('@supabase/supabase-js').createClient>
