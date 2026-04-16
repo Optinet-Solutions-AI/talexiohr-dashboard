@@ -8,8 +8,8 @@ const STATUS_CONFIG: Record<string, { color: string; label: string }> = {
   remote:      { color: 'bg-teal-400',    label: 'Remote' },
   vacation:    { color: 'bg-violet-400',  label: 'Leave' },
   sick:        { color: 'bg-red-400',     label: 'Sick' },
-  no_clocking: { color: 'bg-slate-300',   label: 'No Clocking' },
-  unknown:     { color: 'bg-slate-200',   label: 'Unknown' },
+  no_clocking: { color: 'bg-zinc-400',     label: 'No Clocking' },
+  unknown:     { color: 'bg-zinc-300',    label: 'Unknown' },
   active:      { color: 'bg-amber-500',   label: 'No Clock-out' },
   broken:      { color: 'bg-orange-400',  label: 'Broken Clocking' },
 }
@@ -98,7 +98,7 @@ export default function AttendanceGrid({ employees, dates }: { employees: GridEm
                     <td key={date} className={`px-0 py-1 text-center ${isWeekend ? 'opacity-40' : ''}`}>
                       <div className="relative">
                         <div
-                          className={`w-[18px] h-[18px] rounded-[4px] mx-auto cursor-default ${config.color} transition-transform hover:scale-125 ${hasFlag ? 'ring-1 ring-red-400 ring-offset-1' : ''}`}
+                          className={`w-[18px] h-[18px] rounded-[4px] mx-auto cursor-default ${config.color} transition-transform hover:scale-125 ${hasFlag ? 'ring-2 ring-rose-500' : ''}`}
                           onMouseEnter={e => {
                             const rect = (e.target as HTMLElement).getBoundingClientRect()
                             setTooltip({ name: emp.name, day: day ?? { date, label: 'unknown', status: 'unknown' }, date, x: rect.left + rect.width / 2, y: rect.top - 8 })
@@ -137,7 +137,7 @@ export default function AttendanceGrid({ employees, dates }: { employees: GridEm
           </div>
         ))}
         <div className="flex items-center gap-1.5">
-          <div className="w-3 h-3 rounded-[3px] bg-slate-300 ring-1 ring-red-400 ring-offset-1" />
+          <div className="w-3 h-3 rounded-[3px] bg-slate-300 ring-2 ring-rose-500" />
           <span className="text-[10px] text-red-500">Location Mismatch</span>
         </div>
       </div>
