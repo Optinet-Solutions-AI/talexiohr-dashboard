@@ -164,7 +164,10 @@ export async function downloadExportFile(token: string, fileUrl: string): Promis
     cache: 'no-store',
   })
 
-  if (!res.ok) throw new Error(`File download failed: ${res.status}`)
+  if (!res.ok) {
+    const body = await res.text().catch(() => '')
+    throw new Error(`File download failed (${res.status}): url=${url} body=${body.slice(0, 200)}`)
+  }
 
   return await res.text()
 }

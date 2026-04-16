@@ -76,11 +76,16 @@ export async function POST(req: NextRequest) {
     const job = await pollBackgroundJob(token, jobId)
 
     if (!job.file?.fileUrl) {
-      return NextResponse.json({ error: 'Export completed but no file was generated', jobStatus: job.jobStatus }, { status: 500 })
+      return NextResponse.json({ error: 'Export completed but no file was generated', jobStatus: job.jobStatus, jobResult: job.result }, { status: 500 })
     }
 
     // 4. Download the CSV
-    const csvText = await downloadExportFile(token, job.file.fileUrl)
+    let csvText: string
+    try {
+      csvText = await downloadExportFile(token, job.file.fileUrl)
+    } catch (err) {
+      return NextResponse.json({ error: err instanceof Error ? err.message : 'Download failed', fileUrl: job.file.fileUrl, jobId }, { status: 500 })
+    }
 
     // 5. Parse the CSV
     const rows = parseExportCsv(csvText)
