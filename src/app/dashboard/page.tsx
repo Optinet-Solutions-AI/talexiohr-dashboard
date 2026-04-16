@@ -31,7 +31,27 @@ interface PageProps {
 type RecordRow = {
   date: string
   status: string
+  hours_worked: number | null
+  time_in: string | null
+  time_out: string | null
+  location_in: string | null
+  lat_in: number | null
+  lng_in: number | null
+  location_out: string | null
+  lat_out: number | null
+  lng_out: number | null
   employees: { id: string; full_name: string } | { id: string; full_name: string }[]
+}
+
+// Office GPS check
+const OFFICE_LAT = 35.9222072, OFFICE_LNG = 14.4878368, OFFICE_KM = 0.15
+function gpsKm(lat1: number, lng1: number, lat2: number, lng2: number) {
+  const R = 6371, dLat = (lat2 - lat1) * Math.PI / 180, dLng = (lng2 - lng1) * Math.PI / 180
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+}
+function isAtOffice(lat: number | null, lng: number | null) {
+  return lat && lng ? gpsKm(lat, lng, OFFICE_LAT, OFFICE_LNG) <= OFFICE_KM : false
 }
 
 function groupByPeriod(recs: RecordRow[], period: string, from: string, to: string) {
@@ -103,7 +123,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
 
   let query = supabase
     .from('attendance_records')
-    .select('date, status, employees!inner(id, full_name)')
+    .select('date, status, hours_worked, time_in, time_out, location_in, lat_in, lng_in, location_out, lat_out, lng_out, employees!inner(id, full_name)')
     .gte('date', from).lte('date', to).order('date')
   if (empFilter) query = query.eq('employee_id', empFilter)
   const { data: records } = await query
@@ -114,6 +134,21 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   const count = (s: string) => recs.filter(r => r.status === s).length
   const empCount = empFilter ? emps.filter(e => e.id === empFilter).length : emps.length
 
+  // Broken clocking sub-types
+  const brokenNoClockOut = recs.filter(r => (r.status === 'broken' || r.status === 'active') && r.time_in && !r.time_out).length
+  const brokenAll = count('broken') + count('active')
+
+  // Location mismatch: status is "office" but GPS/location_out is not at the office
+  const locationMismatch = recs.filter(r => {
+    if (r.status !== 'office') return false
+    // Check if clock-out location is far from office
+    if (r.lat_out && r.lng_out && !isAtOffice(r.lat_out, r.lng_out)) return true
+    // Or if location_out explicitly says something other than office
+    const locOut = (r.location_out ?? '').toLowerCase()
+    if (locOut && !locOut.includes('office') && !locOut.includes('head office')) return true
+    return false
+  }).length
+
   const stats = [
     { label: 'Employees',   value: empCount },
     { label: 'In Office',   value: count('office') },
@@ -121,6 +156,8 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     { label: 'Remote',      value: count('remote') },
     { label: 'On Leave',    value: count('vacation') + count('sick') },
     { label: 'No Clocking', value: count('no_clocking') },
+    { label: 'Broken',      value: brokenAll },
+    { label: 'Loc. Mismatch', value: locationMismatch },
   ]
 
   const buckets = groupByPeriod(recs, period, from, to)
@@ -140,7 +177,27 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   const gridEmps = empFilter ? emps.filter(e => e.id === empFilter) : emps
   const gridEmployees: GridEmployee[] = gridEmps.map(emp => {
     const empRecords = recs.filter(r => { const e = Array.isArray(r.employees) ? r.employees[0] : r.employees; return e?.id === emp.id })
-    return { name: emp.full_name, days: empRecords.map(r => ({ date: r.date, label: r.status, status: r.status })) }
+    return {
+      name: emp.full_name,
+      days: empRecords.map(r => {
+        // Detect flags
+        const flags: string[] = []
+        if ((r.status === 'broken' || r.status === 'active') && r.time_in && !r.time_out) flags.push('No clock-out')
+        if ((r.status === 'broken' || r.status === 'active') && (!r.time_in || r.time_out)) flags.push('Broken')
+        if (r.status === 'office' && r.lat_out && r.lng_out && !isAtOffice(r.lat_out, r.lng_out)) flags.push('Clock-out location mismatch')
+        if (r.status === 'office' && r.lat_in && r.lng_in && !isAtOffice(r.lat_in, r.lng_in)) flags.push('Clock-in location mismatch')
+
+        return {
+          date: r.date,
+          label: r.status,
+          status: r.status,
+          hours: r.hours_worked,
+          timeIn: r.time_in,
+          timeOut: r.time_out,
+          flags,
+        }
+      }),
+    }
   })
 
   const selectedEmpName = empFilter ? emps.find(e => e.id === empFilter)?.full_name : null
@@ -156,7 +213,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
       <DashboardFilters employees={emps} defaults={{ from, to, period, employee: empFilter }} />
 
       {/* Stat cards */}
-      <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
+      <div className="grid grid-cols-4 sm:grid-cols-8 gap-3">
         {stats.map(({ label, value }) => (
           <div key={label} className="bg-white rounded-lg border border-slate-200 p-3">
             <p className="text-xl font-bold text-slate-800">{value}</p>
