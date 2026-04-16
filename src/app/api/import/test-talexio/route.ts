@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
       },
       body: JSON.stringify({
         operationName: 'TestTimeLogs',
-        query: `query TestTimeLogs($params: TimeLogsFilterParams, $pageNumber: Int!, $pageSize: Int!) {
+        query: `query TestTimeLogs($params: TimeLogsFilterParams!, $pageNumber: Int!, $pageSize: Int!) {
           pagedTimeLogs(params: $params, pageNumber: $pageNumber, pageSize: $pageSize, withTotal: true) {
             totalCount
             timeLogs {
