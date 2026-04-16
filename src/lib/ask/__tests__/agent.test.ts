@@ -52,6 +52,24 @@ function toolCallStream(calls: Array<{ id: string; name: string; args: string }>
   return (async function* () { for (const c of chunks) yield c })()
 }
 
+// Interleave: content deltas first, then a tool call later in the same iteration
+function preambleThenToolCallStream(preamble: string, call: { id: string; name: string; args: string }): AsyncIterable<FakeChunk> {
+  const chunks: FakeChunk[] = []
+  // Content arrives first
+  const parts = preamble.match(/.{1,4}/g) ?? [preamble]
+  for (const p of parts) {
+    chunks.push({ choices: [{ delta: { content: p }, finish_reason: null }] })
+  }
+  // Tool call arrives after
+  chunks.push({ choices: [{ delta: { tool_calls: [{ index: 0, id: call.id, type: 'function', function: { name: call.name, arguments: '' } }] }, finish_reason: null }] })
+  const fragments = call.args.match(/.{1,4}/g) ?? [call.args]
+  for (const f of fragments) {
+    chunks.push({ choices: [{ delta: { tool_calls: [{ index: 0, function: { arguments: f } }] }, finish_reason: null }] })
+  }
+  chunks.push({ choices: [{ delta: {}, finish_reason: 'tool_calls' }], usage: { total_tokens: 50 } })
+  return (async function* () { for (const c of chunks) yield c })()
+}
+
 function makeOpenAI(streams: AsyncIterable<FakeChunk>[]) {
   let i = 0
   return {
@@ -139,5 +157,26 @@ describe('runAgent (streaming-based)', () => {
     expect(tokens.length).toBeGreaterThan(0)
     const assembled = tokens.map(t => (t as { type: 'token'; delta: string }).delta).join('')
     expect(assembled).toBe('Hello there')
+  })
+
+  it('does not emit token events for preamble content that precedes tool calls', async () => {
+    vi.mocked(executeTool).mockResolvedValue({ result: {}, rowCount: 0 })
+    const events: AgentEvent[] = []
+    const openai = makeOpenAI([
+      preambleThenToolCallStream('Let me check...', { id: 't1', name: 'query_attendance', args: '{}' }),
+      contentStream('Final answer'),
+    ])
+    await runAgent({
+      question: 'q',
+      openai: openai as never,
+      supabase: {} as never,
+      onEvent: (e) => events.push(e),
+    })
+    const tokens = events.filter(e => e.type === 'token')
+    const assembled = tokens.map(t => (t as { type: 'token'; delta: string }).delta).join('')
+    // Must not contain any of the preamble that appeared before the tool call
+    expect(assembled).not.toContain('Let me check')
+    // Must contain the final answer from the second iteration
+    expect(assembled).toBe('Final answer')
   })
 })

@@ -51,6 +51,7 @@ export async function runAgent(params: {
     })
 
     let content = ''
+    const deltaBuffer: string[] = []
     const accToolCalls = new Map<number, AccumulatedToolCall>()
     let finishReason: string | null | undefined = null
 
@@ -81,7 +82,10 @@ export async function runAgent(params: {
 
       if (typeof delta.content === 'string' && delta.content.length > 0) {
         content += delta.content
-        onEvent?.({ type: 'token', delta: delta.content })
+        // Buffer the delta. We can't emit token events yet — this iteration
+        // might turn out to have tool calls, in which case the content is
+        // preamble, not the final answer.
+        deltaBuffer.push(delta.content)
       }
 
       if (delta.tool_calls) {
@@ -99,6 +103,14 @@ export async function runAgent(params: {
 
       if (choice?.finish_reason) finishReason = choice.finish_reason
       if (c.usage) totalTokens += c.usage.total_tokens
+    }
+
+    // If this iteration has no tool calls, it produced the final answer — emit
+    // the buffered content deltas as token events now.
+    if (accToolCalls.size === 0) {
+      for (const piece of deltaBuffer) {
+        onEvent?.({ type: 'token', delta: piece })
+      }
     }
 
     if (totalTokens > MAX_TOKENS_PER_REQUEST) {
