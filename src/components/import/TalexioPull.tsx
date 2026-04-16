@@ -10,7 +10,7 @@ export default function TalexioPull() {
   const [token, setToken] = useState('')
   const [step, setStep] = useState<'idle' | 'testing' | 'pulling' | 'done' | 'error'>('idle')
   const [progress, setProgress] = useState('')
-  const [result, setResult] = useState<{ fetched: number; saved: number; employees: number; message?: string } | null>(null)
+  const [result, setResult] = useState<Record<string, unknown> | null>(null)
   const [error, setError] = useState('')
   const router = useRouter()
 
@@ -30,8 +30,8 @@ export default function TalexioPull() {
       }
 
       setProgress('')
-      setStep('idle')
-      alert(JSON.stringify(data, null, 2))
+      setResult(data)
+      setStep('done')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Test failed')
       setStep('error')
@@ -124,16 +124,22 @@ export default function TalexioPull() {
 
         {/* Done */}
         {step === 'done' && result && (
-          <div className="rounded-md bg-indigo-50 p-3">
+          <div className="rounded-md bg-indigo-50 p-3 space-y-2">
             <p className="text-xs font-medium text-indigo-700">
               <CheckCircle2 size={12} className="inline mr-1" />
-              {result.message || 'Pull complete'}
+              {result.saved != null ? 'Pull complete' : 'Response'}
             </p>
-            <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-indigo-600 mt-1">
-              <span>{result.fetched} rows fetched</span>
-              <span>{result.saved} records saved</span>
-              <span>{result.employees} employees</span>
-            </div>
+            {result.saved != null && (
+              <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-indigo-600">
+                <span>{String(result.fetched)} rows fetched</span>
+                <span>{String(result.saved)} records saved</span>
+                <span>{String(result.employees)} employees</span>
+              </div>
+            )}
+            <pre className="text-[10px] text-indigo-700 bg-indigo-100/50 rounded p-2 overflow-x-auto max-h-48 overflow-y-auto whitespace-pre-wrap break-all">
+              {JSON.stringify(result, null, 2)}
+            </pre>
+            <button onClick={() => { setStep('idle'); setResult(null) }} className="text-xs text-indigo-600 hover:underline">Dismiss</button>
           </div>
         )}
 
