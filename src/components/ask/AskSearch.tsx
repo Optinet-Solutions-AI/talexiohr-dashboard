@@ -75,13 +75,19 @@ export default function AskSearch() {
   async function handleAsk(question?: string) {
     const q = (question ?? query).trim()
     if (!q) return
+    if (q.length > 500) { alert('Question is too long (max 500 characters)'); return }
     setLoading(true)
     try {
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 30000) // 30s timeout
+
       const res = await fetch('/api/ask', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ question: q }),
+        signal: controller.signal,
       })
+      clearTimeout(timeout)
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
 
@@ -96,10 +102,14 @@ export default function AskSearch() {
       setAnswers(prev => [newAnswer, ...prev])
       if (!question) setQuery('')
     } catch (err) {
+      const isTimeout = err instanceof DOMException && err.name === 'AbortError'
+      const errMsg = isTimeout
+        ? 'The query took too long (over 30 seconds). Try a simpler question — for example, ask about a specific employee or a shorter date range instead of "all employees for the whole year".'
+        : `Error: ${err instanceof Error ? err.message : 'Failed to get answer'}`
       const errAnswer: Answer = {
         id: generateId(),
         question: q,
-        answer: `Error: ${err instanceof Error ? err.message : 'Failed to get answer'}`,
+        answer: errMsg,
         context: { dateRange: { from: '', to: '' }, employeeCount: 0, recordCount: 0 },
         timestamp: new Date().toISOString(),
         saved: false,

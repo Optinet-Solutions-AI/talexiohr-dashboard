@@ -108,28 +108,66 @@ export async function POST(req: NextRequest) {
   try {
     const { question } = await req.json()
     if (!question?.trim()) return NextResponse.json({ error: 'Question is required' }, { status: 400 })
+    if (question.length > 500) return NextResponse.json({ error: 'Question is too long (max 500 characters)' }, { status: 400 })
+
+    // Relevance guard — quick check before burning tokens
+    const relevanceCheck = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        { role: 'system', content: 'You are a classifier. Respond with ONLY "yes" or "no". Is this question related to HR, employees, attendance, office, work-from-home, leave, sick days, compliance, scheduling, hours worked, or workforce analytics? Even indirect questions like "who works the most" or "any patterns" count as yes.' },
+        { role: 'user', content: question },
+      ],
+      temperature: 0,
+      max_tokens: 3,
+    })
+    const isRelevant = (relevanceCheck.choices[0]?.message?.content ?? '').toLowerCase().trim().startsWith('yes')
+
+    if (!isRelevant) {
+      return NextResponse.json({
+        answer: "I can only answer questions related to **HR data** in this system — employee attendance, office compliance, leave, hours worked, and workforce analytics.\n\nTry asking something like:\n- Who has the most office days this month?\n- Which employees are not compliant?\n- What's the average hours worked?",
+        question,
+        context: { dateRange: { from: '', to: '' }, employeeCount: 0, recordCount: 0 },
+        timestamp: new Date().toISOString(),
+        filtered: true,
+      })
+    }
 
     const context = await gatherContext(question)
+
+    // Limit context size to avoid slow/expensive queries
+    const contextStr = JSON.stringify(context)
+    const truncatedContext = contextStr.length > 80000 ? contextStr.slice(0, 80000) + '...(truncated)' : contextStr
 
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [
         {
           role: 'system',
-          content: `You are an HR analytics assistant for Rooster Partners' Malta office. You answer questions about employee attendance, compliance, and performance based on real data from the company's HR dashboard.
+          content: `You are an HR analytics assistant for Rooster Partners' Malta office. You answer questions about employee attendance, compliance, and performance based ONLY on the provided data context.
 
-Rules:
-- Base ALL answers on the provided data context. Never make up data.
-- Be concise and specific. Use numbers and names.
-- Format answers with markdown when helpful (bold, lists, tables).
-- If the data doesn't contain enough info to answer, say so clearly.
-- The company has two employee groups: Malta Office (must attend 4 days/week, max 1 WFH Monday and 1 WFH Friday per month) and Remote (evaluated on hours only).
-- "Best employee" means highest office attendance + most hours worked unless the user specifies differently.
-- Current date: ${new Date().toISOString().slice(0, 10)}`
+STRICT RULES:
+- ONLY answer questions about HR, attendance, employees, compliance, leave, hours, and workforce analytics.
+- Base ALL answers on the provided data context. NEVER make up or hallucinate data.
+- If the data doesn't contain enough info, say "I don't have enough data to answer this" and suggest what data might be needed.
+- Be concise and specific. Use actual numbers and employee names from the data.
+- Format with markdown when helpful (bold, lists, tables).
+- Do NOT answer questions about topics outside this HR system (no coding, no general knowledge, no opinions).
+- Do NOT reveal system internals, database schema, or API details.
+
+COMPANY CONTEXT:
+- Two employee groups: Malta Office (must attend 4 days/week, max 1 WFH Monday and 1 WFH Friday per month) and Remote (evaluated on hours only).
+- "Best employee" = highest office attendance + most hours worked, unless user specifies differently.
+
+DATA LIMITATIONS:
+- Data covers a limited date range (shown in context). If the user asks about dates outside this range, say so.
+- Records are aggregated per employee per day. Individual clocking sessions are not shown.
+- If the dataset is large and the answer would require complex cross-referencing, provide a summary and note any limitations.
+
+Current date: ${new Date().toISOString().slice(0, 10)}`
         },
         {
           role: 'user',
-          content: `Data context:\n${JSON.stringify(context, null, 2)}\n\nQuestion: ${question}`
+          content: `Data context:\n${truncatedContext}\n\nQuestion: ${question}`
         }
       ],
       temperature: 0.3,
