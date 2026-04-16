@@ -72,7 +72,7 @@ export default async function LeavePage() {
                         <td className="px-4 py-2.5 text-slate-500">{emp?.unit ?? '—'}</td>
                         <td className="px-4 py-2.5 text-slate-600 font-medium">{r.date}</td>
                         <td className="px-4 py-2.5">
-                          <span className={`inline-flex items-center rounded px-2 py-0.5 text-[11px] font-medium ${r.status === 'sick' ? 'bg-slate-300 text-slate-700' : 'bg-slate-200 text-slate-500'}`}>
+                          <span className={`inline-flex items-center rounded px-2 py-0.5 text-[11px] font-medium ${r.status === 'sick' ? 'bg-red-50 text-red-600' : 'bg-indigo-50 text-indigo-600'}`}>
                             {r.status === 'sick' ? 'Sick' : 'Vacation'}
                           </span>
                         </td>
@@ -91,7 +91,7 @@ export default async function LeavePage() {
                   <div key={r.id} className="px-4 py-3 space-y-1">
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-medium text-slate-700">{emp?.full_name ?? '—'}</span>
-                      <span className={`inline-flex items-center rounded px-2 py-0.5 text-[10px] font-medium ${r.status === 'sick' ? 'bg-slate-300 text-slate-700' : 'bg-slate-200 text-slate-500'}`}>
+                      <span className={`inline-flex items-center rounded px-2 py-0.5 text-[10px] font-medium ${r.status === 'sick' ? 'bg-red-50 text-red-600' : 'bg-indigo-50 text-indigo-600'}`}>
                         {r.status === 'sick' ? 'Sick' : 'Vacation'}
                       </span>
                     </div>

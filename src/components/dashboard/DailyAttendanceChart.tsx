@@ -16,12 +16,12 @@ export interface DayData {
 }
 
 const COLORS = {
-  office:      '#334155',
-  wfh:         '#64748b',
-  remote:      '#94a3b8',
-  vacation:    '#cbd5e1',
-  no_clocking: '#e2e8f0',
-  unknown:     '#f1f5f9',
+  office:      '#4f46e5', // indigo-600
+  wfh:         '#818cf8', // indigo-400
+  remote:      '#a5b4fc', // indigo-300
+  vacation:    '#c7d2fe', // indigo-200
+  no_clocking: '#d1d5db', // gray-300
+  unknown:     '#e5e7eb', // gray-200
 }
 
 const LABELS = {

@@ -96,7 +96,7 @@ export default function DashboardFilters({ employees, defaults }: { employees: E
         <div className="flex rounded-md border border-slate-200 overflow-hidden">
           {PERIODS.map(p => (
             <button key={p.value} onClick={() => changePeriod(p.value)}
-              className={`px-3 py-1.5 text-xs font-medium transition-colors ${period === p.value ? 'bg-slate-800 text-white' : 'bg-white text-slate-400 hover:text-slate-600'}`}>
+              className={`px-3 py-1.5 text-xs font-medium transition-colors ${period === p.value ? 'bg-indigo-600 text-white' : 'bg-white text-gray-500 hover:text-gray-700'}`}>
               {p.label}
             </button>
           ))}
@@ -135,7 +135,7 @@ export default function DashboardFilters({ employees, defaults }: { employees: E
             <div className="absolute top-full left-0 right-0 mt-1 bg-white rounded-md border border-slate-200 shadow-md z-50 max-h-56 overflow-y-auto">
               <button onClick={() => changeEmp('')} className={`w-full text-left px-3 py-2 text-xs hover:bg-slate-50 ${!empId ? 'font-medium text-slate-800' : 'text-slate-500'}`}>All employees</button>
               {filtered.map(emp => (
-                <button key={emp.id} onClick={() => changeEmp(emp.id)} className={`w-full text-left px-3 py-2 text-xs hover:bg-slate-50 ${empId === emp.id ? 'font-medium text-slate-800 bg-slate-50' : 'text-slate-600'}`}>{emp.full_name}</button>
+                <button key={emp.id} onClick={() => changeEmp(emp.id)} className={`w-full text-left px-3 py-2 text-xs hover:bg-slate-50 ${empId === emp.id ? 'font-medium text-indigo-700 bg-indigo-50' : 'text-gray-600'}`}>{emp.full_name}</button>
               ))}
               {filtered.length === 0 && <p className="px-3 py-2 text-xs text-slate-300 text-center">No matches</p>}
             </div>

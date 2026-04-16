@@ -9,8 +9,8 @@ const montserrat = Montserrat({
 });
 
 export const metadata: Metadata = {
-  title: "Talexio HR Dashboard",
-  description: "HR Dashboard powered by Next.js and Supabase",
+  title: "HR Dashboard",
+  description: "HR attendance and compliance dashboard",
 };
 
 export default function RootLayout({

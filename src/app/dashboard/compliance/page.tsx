@@ -118,7 +118,7 @@ export default async function CompliancePage({ searchParams }: PageProps) {
                         <p className="text-[10px] text-slate-400">{e.unit ?? '—'}</p>
                       </td>
                       <td className="px-4 py-2.5 text-center">
-                        <span className={`inline-flex items-center rounded px-2 py-0.5 text-[11px] font-medium ${e.ok ? 'bg-slate-100 text-slate-500' : 'bg-slate-700 text-white'}`}>
+                        <span className={`inline-flex items-center rounded px-2 py-0.5 text-[11px] font-medium ${e.ok ? 'bg-indigo-50 text-indigo-600' : 'bg-red-50 text-red-600'}`}>
                           {e.ok ? 'OK' : 'Breach'}
                         </span>
                       </td>
@@ -147,7 +147,7 @@ export default async function CompliancePage({ searchParams }: PageProps) {
                 <div key={e.id} className="px-4 py-3 space-y-1.5">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-medium text-slate-700">{e.full_name}</span>
-                    <span className={`inline-flex items-center rounded px-2 py-0.5 text-[10px] font-medium ${e.ok ? 'bg-slate-100 text-slate-500' : 'bg-slate-700 text-white'}`}>
+                    <span className={`inline-flex items-center rounded px-2 py-0.5 text-[10px] font-medium ${e.ok ? 'bg-indigo-50 text-indigo-600' : 'bg-red-50 text-red-600'}`}>
                       {e.ok ? 'OK' : 'Breach'}
                     </span>
                   </div>

@@ -1,15 +1,15 @@
 'use client'
 
 const STATUS_STYLE: Record<string, { bg: string; text: string; label: string }> = {
-  office:      { bg: 'bg-slate-700', text: 'text-white',     label: 'Office' },
-  wfh:         { bg: 'bg-slate-400', text: 'text-white',     label: 'WFH'    },
-  remote:      { bg: 'bg-slate-300', text: 'text-slate-700', label: 'Remote' },
-  vacation:    { bg: 'bg-slate-200', text: 'text-slate-500', label: 'Leave'  },
-  sick:        { bg: 'bg-slate-200', text: 'text-slate-500', label: 'Sick'   },
-  no_clocking: { bg: 'bg-slate-100', text: 'text-slate-400', label: '—'      },
-  unknown:     { bg: 'bg-slate-50',  text: 'text-slate-300', label: '·'      },
-  active:      { bg: 'bg-slate-400', text: 'text-white',     label: 'Active' },
-  broken:      { bg: 'bg-slate-300', text: 'text-slate-600', label: 'Broken' },
+  office:      { bg: 'bg-indigo-600', text: 'text-white',       label: 'Office' },
+  wfh:         { bg: 'bg-indigo-100', text: 'text-indigo-700',  label: 'WFH'    },
+  remote:      { bg: 'bg-indigo-50',  text: 'text-indigo-500',  label: 'Remote' },
+  vacation:    { bg: 'bg-gray-100',   text: 'text-gray-500',    label: 'Leave'  },
+  sick:        { bg: 'bg-gray-100',   text: 'text-gray-500',    label: 'Sick'   },
+  no_clocking: { bg: 'bg-gray-50',    text: 'text-gray-400',    label: '—'      },
+  unknown:     { bg: 'bg-gray-50',    text: 'text-gray-300',    label: '·'      },
+  active:      { bg: 'bg-indigo-100', text: 'text-indigo-600',  label: 'Active' },
+  broken:      { bg: 'bg-gray-100',   text: 'text-gray-500',    label: 'Broken' },
 }
 
 export interface GridEmployee {

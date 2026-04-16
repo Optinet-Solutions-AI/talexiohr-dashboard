@@ -7,17 +7,16 @@ import DashboardFilters from '@/components/dashboard/DashboardFilters'
 
 export const dynamic = 'force-dynamic'
 
-// Muted monochrome-leaning palette
 const STATUS_COLORS: Record<string, string> = {
-  office:      '#334155', // slate-700
-  wfh:         '#64748b', // slate-500
-  remote:      '#94a3b8', // slate-400
-  vacation:    '#cbd5e1', // slate-300
-  sick:        '#cbd5e1',
-  no_clocking: '#e2e8f0', // slate-200
-  unknown:     '#f1f5f9', // slate-100
-  active:      '#64748b',
-  broken:      '#94a3b8',
+  office:      '#4f46e5', // indigo-600
+  wfh:         '#818cf8', // indigo-400
+  remote:      '#a5b4fc', // indigo-300
+  vacation:    '#c7d2fe', // indigo-200
+  sick:        '#c7d2fe',
+  no_clocking: '#d1d5db', // gray-300
+  unknown:     '#e5e7eb', // gray-200
+  active:      '#818cf8',
+  broken:      '#a5b4fc',
 }
 
 interface PageProps {

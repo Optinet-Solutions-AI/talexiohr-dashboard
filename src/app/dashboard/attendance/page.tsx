@@ -148,7 +148,7 @@ export default async function AttendancePage({ searchParams }: PageProps) {
                 {page > 1 && <a href={`${baseHref}&page=${page - 1}`} className="px-2 py-1 rounded border border-slate-200 hover:bg-slate-50 text-[11px]">Prev</a>}
                 {pages.map(p => (
                   <a key={p} href={`${baseHref}&page=${p}`}
-                    className={`px-2 py-1 rounded text-[11px] font-medium ${p === page ? 'bg-slate-800 text-white border border-slate-800' : 'border border-slate-200 hover:bg-slate-50 text-slate-500'}`}>{p}</a>
+                    className={`px-2 py-1 rounded text-[11px] font-medium ${p === page ? 'bg-indigo-600 text-white border border-indigo-600' : 'border border-slate-200 hover:bg-slate-50 text-slate-500'}`}>{p}</a>
                 ))}
                 {page < totalPages && <a href={`${baseHref}&page=${page + 1}`} className="px-2 py-1 rounded border border-slate-200 hover:bg-slate-50 text-[11px]">Next</a>}
               </div>

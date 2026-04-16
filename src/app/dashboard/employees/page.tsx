@@ -3,9 +3,9 @@ import { createAdminClient } from '@/lib/supabase/admin'
 export const dynamic = 'force-dynamic'
 
 const GROUP_STYLE: Record<string, { label: string; cls: string }> = {
-  office_malta: { label: 'Malta Office', cls: 'bg-slate-700 text-white' },
-  remote:       { label: 'Remote',       cls: 'bg-slate-300 text-slate-700' },
-  unclassified: { label: 'Unclassified', cls: 'bg-slate-100 text-slate-400' },
+  office_malta: { label: 'Malta Office', cls: 'bg-indigo-600 text-white' },
+  remote:       { label: 'Remote',       cls: 'bg-indigo-100 text-indigo-700' },
+  unclassified: { label: 'Unclassified', cls: 'bg-gray-100 text-gray-500' },
 }
 
 export default async function EmployeesPage() {

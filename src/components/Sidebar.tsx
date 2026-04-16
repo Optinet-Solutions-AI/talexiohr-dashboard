@@ -26,8 +26,8 @@ const navItems = [
 function NavContent({ pathname, onNavigate }: { pathname: string; onNavigate?: () => void }) {
   return (
     <>
-      <div className="mb-8 px-2">
-        <span className="text-base font-bold text-slate-800 tracking-tight">Talexio HR</span>
+      <div className="mb-8 px-3">
+        <span className="text-base font-bold text-white tracking-tight">HR Dashboard</span>
       </div>
 
       <nav className="flex flex-col gap-0.5 flex-1">
@@ -40,11 +40,11 @@ function NavContent({ pathname, onNavigate }: { pathname: string; onNavigate?: (
               onClick={onNavigate}
               className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
                 active
-                  ? 'bg-slate-100 text-slate-900'
-                  : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'
+                  ? 'bg-white/15 text-white'
+                  : 'text-indigo-200 hover:bg-white/10 hover:text-white'
               }`}
             >
-              <Icon size={16} className={active ? 'text-slate-700' : 'text-slate-400'} />
+              <Icon size={16} className={active ? 'text-white' : 'text-indigo-300'} />
               {label}
             </Link>
           )
@@ -61,21 +61,21 @@ export default function Sidebar() {
   return (
     <>
       {/* Mobile top bar */}
-      <div className="lg:hidden fixed top-0 left-0 right-0 z-40 h-14 bg-white border-b border-slate-200 flex items-center px-4">
-        <button onClick={() => setOpen(true)} className="p-1.5 -ml-1.5 text-slate-600">
+      <div className="lg:hidden fixed top-0 left-0 right-0 z-40 h-14 bg-indigo-950 flex items-center px-4">
+        <button onClick={() => setOpen(true)} className="p-1.5 -ml-1.5 text-indigo-200">
           <Menu size={20} />
         </button>
-        <span className="ml-3 text-sm font-bold text-slate-800 tracking-tight">Talexio HR</span>
+        <span className="ml-3 text-sm font-bold text-white tracking-tight">HR Dashboard</span>
       </div>
 
       {/* Mobile drawer overlay */}
       {open && (
         <div className="lg:hidden fixed inset-0 z-50">
-          <div className="absolute inset-0 bg-black/20" onClick={() => setOpen(false)} />
-          <aside className="relative w-64 h-full bg-white border-r border-slate-200 py-6 px-4 flex flex-col">
+          <div className="absolute inset-0 bg-black/30" onClick={() => setOpen(false)} />
+          <aside className="relative w-64 h-full bg-indigo-950 py-6 px-4 flex flex-col">
             <button
               onClick={() => setOpen(false)}
-              className="absolute top-4 right-4 p-1.5 text-slate-400 hover:text-slate-600"
+              className="absolute top-4 right-4 p-1.5 text-indigo-300 hover:text-white"
             >
               <X size={18} />
             </button>
@@ -85,7 +85,7 @@ export default function Sidebar() {
       )}
 
       {/* Desktop sidebar */}
-      <aside className="hidden lg:flex w-56 flex-col bg-white border-r border-slate-200 py-6 px-4 shrink-0">
+      <aside className="hidden lg:flex w-56 flex-col bg-indigo-950 py-6 px-4 shrink-0">
         <NavContent pathname={pathname} />
       </aside>
     </>
