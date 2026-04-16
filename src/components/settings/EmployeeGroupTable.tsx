@@ -41,10 +41,10 @@ export default function EmployeeGroupTable({ employees }: { employees: Employee[
         <table className="w-full text-xs">
           <thead>
             <tr className="bg-slate-50 text-left">
-              <th className="px-4 py-2.5 font-medium text-slate-400 text-[10px] uppercase tracking-wider">Employee</th>
-              <th className="px-4 py-2.5 font-medium text-slate-400 text-[10px] uppercase tracking-wider">Code</th>
-              <th className="px-4 py-2.5 font-medium text-slate-400 text-[10px] uppercase tracking-wider">Unit</th>
-              <th className="px-4 py-2.5 font-medium text-slate-400 text-[10px] uppercase tracking-wider w-44">Group</th>
+              <th className="px-4 py-2.5 font-medium text-slate-600 text-[10px] uppercase tracking-wider">Employee</th>
+              <th className="px-4 py-2.5 font-medium text-slate-600 text-[10px] uppercase tracking-wider">Code</th>
+              <th className="px-4 py-2.5 font-medium text-slate-600 text-[10px] uppercase tracking-wider">Unit</th>
+              <th className="px-4 py-2.5 font-medium text-slate-600 text-[10px] uppercase tracking-wider w-44">Group</th>
               <th className="px-4 py-2.5 w-8"></th>
             </tr>
           </thead>
@@ -54,7 +54,7 @@ export default function EmployeeGroupTable({ employees }: { employees: Employee[
               return (
                 <tr key={emp.id} className="hover:bg-slate-50/50 transition-colors">
                   <td className="px-4 py-2.5 font-medium text-slate-700">{emp.full_name}</td>
-                  <td className="px-4 py-2.5 text-slate-400 font-mono text-[11px]">{emp.talexio_id ?? '—'}</td>
+                  <td className="px-4 py-2.5 text-slate-600 font-mono text-[11px]">{emp.talexio_id ?? '—'}</td>
                   <td className="px-4 py-2.5 text-slate-500">{emp.unit ?? '—'}</td>
                   <td className="px-4 py-2.5">
                     <select
@@ -66,7 +66,7 @@ export default function EmployeeGroupTable({ employees }: { employees: Employee[
                     </select>
                   </td>
                   <td className="px-2 py-2.5 text-center w-8">
-                    {saving === emp.id && <Loader2 size={12} className="animate-spin text-slate-300 mx-auto" />}
+                    {saving === emp.id && <Loader2 size={12} className="animate-spin text-slate-500 mx-auto" />}
                     {saved.has(emp.id) && <Check size={12} className="text-slate-500 mx-auto" />}
                   </td>
                 </tr>
@@ -85,7 +85,7 @@ export default function EmployeeGroupTable({ employees }: { employees: Employee[
               <div className="flex items-center justify-between">
                 <span className="text-xs font-medium text-slate-700">{emp.full_name}</span>
                 <div className="flex items-center gap-1.5">
-                  {saving === emp.id && <Loader2 size={11} className="animate-spin text-slate-300" />}
+                  {saving === emp.id && <Loader2 size={11} className="animate-spin text-slate-500" />}
                   {saved.has(emp.id) && <Check size={11} className="text-slate-500" />}
                 </div>
               </div>

@@ -19,7 +19,7 @@ export default function StatusDonutChart({ data }: { data: StatusSlice[] }) {
             {data.map((entry, i) => <Cell key={i} fill={entry.color} />)}
           </Pie>
           <Tooltip
-            contentStyle={{ borderRadius: 6, border: '1px solid #e2e8f0', fontSize: 11, boxShadow: '0 1px 3px rgba(0,0,0,.06)' }}
+            contentStyle={{ borderRadius: 6, border: '1px solid #c7d2fe', fontSize: 11, boxShadow: '0 1px 3px rgba(0,0,0,.08)' }}
             formatter={(value) => { const n = Number(value); return [`${n} (${Math.round(n / total * 100)}%)`, ''] as [string, string] }}
           />
           <Legend iconType="circle" iconSize={6} wrapperStyle={{ fontSize: 11 }} />
@@ -27,7 +27,7 @@ export default function StatusDonutChart({ data }: { data: StatusSlice[] }) {
       </ResponsiveContainer>
       <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none" style={{ top: -16 }}>
         <p className="text-xl font-bold text-slate-700">{total}</p>
-        <p className="text-[10px] text-slate-400">records</p>
+        <p className="text-[10px] text-slate-600">records</p>
       </div>
     </div>
   )

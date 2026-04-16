@@ -66,7 +66,7 @@ export default async function CompliancePage({ searchParams }: PageProps) {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold text-slate-800">Compliance</h1>
-          <p className="text-xs text-slate-400 mt-0.5">Malta Office · {format(monthStart, 'MMMM yyyy')}</p>
+          <p className="text-xs text-slate-600 mt-0.5">Malta Office · {format(monthStart, 'MMMM yyyy')}</p>
         </div>
         <ComplianceFilters currentMonth={selectedMonth} />
       </div>
@@ -79,20 +79,20 @@ export default async function CompliancePage({ searchParams }: PageProps) {
         ].map(({ label, value }) => (
           <div key={label} className="bg-white rounded-lg border border-slate-200 p-3">
             <p className="text-xl font-bold text-slate-800">{value}</p>
-            <p className="text-[11px] text-slate-400 mt-0.5">{label}</p>
+            <p className="text-[11px] text-slate-600 mt-0.5">{label}</p>
           </div>
         ))}
       </div>
 
       <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
         <div className="px-4 py-2.5 border-b border-slate-100">
-          <p className="text-xs text-slate-400">{emps.length} Malta Office employees</p>
+          <p className="text-xs text-slate-600">{emps.length} Malta Office employees</p>
         </div>
 
         {emps.length === 0 ? (
           <div className="py-16 text-center">
-            <p className="text-slate-400 text-sm">No Malta Office employees</p>
-            <p className="text-slate-300 text-xs mt-1">Assign groups in Settings</p>
+            <p className="text-slate-600 text-sm">No Malta Office employees</p>
+            <p className="text-slate-500 text-xs mt-1">Assign groups in Settings</p>
           </div>
         ) : (
           <>
@@ -100,14 +100,14 @@ export default async function CompliancePage({ searchParams }: PageProps) {
               <table className="w-full text-xs">
                 <thead>
                   <tr className="bg-slate-50 text-left">
-                    <th className="px-4 py-2.5 font-medium text-slate-400 text-[10px] uppercase tracking-wider">Employee</th>
-                    <th className="px-4 py-2.5 font-medium text-slate-400 text-[10px] uppercase tracking-wider text-center">Status</th>
-                    <th className="px-4 py-2.5 font-medium text-slate-400 text-[10px] uppercase tracking-wider text-center">Office</th>
-                    <th className="px-4 py-2.5 font-medium text-slate-400 text-[10px] uppercase tracking-wider text-center">WFH</th>
-                    <th className="px-4 py-2.5 font-medium text-slate-400 text-[10px] uppercase tracking-wider text-center">Leave</th>
-                    <th className="px-4 py-2.5 font-medium text-slate-400 text-[10px] uppercase tracking-wider text-center">Mon</th>
-                    <th className="px-4 py-2.5 font-medium text-slate-400 text-[10px] uppercase tracking-wider text-center">Fri</th>
-                    <th className="px-4 py-2.5 font-medium text-slate-400 text-[10px] uppercase tracking-wider">Issues</th>
+                    <th className="px-4 py-2.5 font-medium text-slate-600 text-[10px] uppercase tracking-wider">Employee</th>
+                    <th className="px-4 py-2.5 font-medium text-slate-600 text-[10px] uppercase tracking-wider text-center">Status</th>
+                    <th className="px-4 py-2.5 font-medium text-slate-600 text-[10px] uppercase tracking-wider text-center">Office</th>
+                    <th className="px-4 py-2.5 font-medium text-slate-600 text-[10px] uppercase tracking-wider text-center">WFH</th>
+                    <th className="px-4 py-2.5 font-medium text-slate-600 text-[10px] uppercase tracking-wider text-center">Leave</th>
+                    <th className="px-4 py-2.5 font-medium text-slate-600 text-[10px] uppercase tracking-wider text-center">Mon</th>
+                    <th className="px-4 py-2.5 font-medium text-slate-600 text-[10px] uppercase tracking-wider text-center">Fri</th>
+                    <th className="px-4 py-2.5 font-medium text-slate-600 text-[10px] uppercase tracking-wider">Issues</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
@@ -115,7 +115,7 @@ export default async function CompliancePage({ searchParams }: PageProps) {
                     <tr key={e.id} className={`hover:bg-slate-50/50 transition-colors ${!e.ok ? 'bg-slate-50/30' : ''}`}>
                       <td className="px-4 py-2.5">
                         <p className="font-medium text-slate-700">{e.full_name}</p>
-                        <p className="text-[10px] text-slate-400">{e.unit ?? '—'}</p>
+                        <p className="text-[10px] text-slate-600">{e.unit ?? '—'}</p>
                       </td>
                       <td className="px-4 py-2.5 text-center">
                         <span className={`inline-flex items-center rounded px-2 py-0.5 text-[11px] font-medium ${e.ok ? 'bg-indigo-50 text-indigo-600' : 'bg-red-50 text-red-600'}`}>
@@ -125,10 +125,10 @@ export default async function CompliancePage({ searchParams }: PageProps) {
                       <td className="px-4 py-2.5 text-center font-medium text-slate-700">{e.officeDays}</td>
                       <td className="px-4 py-2.5 text-center text-slate-500">{e.wfhDays}</td>
                       <td className="px-4 py-2.5 text-center text-slate-500">{e.leaveDays}</td>
-                      <td className="px-4 py-2.5 text-center"><span className={`font-medium ${e.monBreach ? 'text-slate-800' : 'text-slate-400'}`}>{e.wfhMon}/{MAX_WFH_MONDAYS}</span></td>
-                      <td className="px-4 py-2.5 text-center"><span className={`font-medium ${e.friBreach ? 'text-slate-800' : 'text-slate-400'}`}>{e.wfhFri}/{MAX_WFH_FRIDAYS}</span></td>
+                      <td className="px-4 py-2.5 text-center"><span className={`font-medium ${e.monBreach ? 'text-slate-800' : 'text-slate-600'}`}>{e.wfhMon}/{MAX_WFH_MONDAYS}</span></td>
+                      <td className="px-4 py-2.5 text-center"><span className={`font-medium ${e.friBreach ? 'text-slate-800' : 'text-slate-600'}`}>{e.wfhFri}/{MAX_WFH_FRIDAYS}</span></td>
                       <td className="px-4 py-2.5">
-                        {e.ok ? <span className="text-slate-300 text-[11px]">—</span> : (
+                        {e.ok ? <span className="text-slate-500 text-[11px]">—</span> : (
                           <div className="space-y-0.5">
                             {e.weeklyBreaches.map((b, i) => <p key={i} className="text-[11px] text-slate-600">Wk {b.week}: {b.got}/{b.need} days</p>)}
                             {e.monBreach && <p className="text-[11px] text-slate-600">{e.wfhMon} WFH Mon (max {MAX_WFH_MONDAYS})</p>}
@@ -151,7 +151,7 @@ export default async function CompliancePage({ searchParams }: PageProps) {
                       {e.ok ? 'OK' : 'Breach'}
                     </span>
                   </div>
-                  <div className="flex items-center gap-3 text-[11px] text-slate-400">
+                  <div className="flex items-center gap-3 text-[11px] text-slate-600">
                     <span>Office: {e.officeDays}</span>
                     <span>WFH: {e.wfhDays}</span>
                     <span>Mon: {e.wfhMon}/{MAX_WFH_MONDAYS}</span>

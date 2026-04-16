@@ -22,7 +22,7 @@ export default function StatCards({ stats }: { stats: Stats }) {
       {cards.map(({ key, label }) => (
         <div key={key} className="bg-white rounded-lg border border-slate-200 p-3">
           <p className="text-xl font-bold text-slate-800">{stats[key]}</p>
-          <p className="text-[11px] text-slate-400 mt-0.5">{label}</p>
+          <p className="text-[11px] text-slate-600 mt-0.5">{label}</p>
         </div>
       ))}
     </div>

@@ -22,7 +22,8 @@
       "Bash(node -e ' *)",
       "Bash(node scripts/import-csv.mjs)",
       "Bash(node scripts/import-april.mjs)",
-      "Bash(npx next *)"
+      "Bash(npx next *)",
+      "Bash(find src *)"
     ],
     "additionalDirectories": [
       "c:\\Users\\Chris-Optinet\\talexiohr-dashboard\\src\\app\\dashboard"

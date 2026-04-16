@@ -13,8 +13,8 @@ const STATUS_COLORS: Record<string, string> = {
   remote:      '#a5b4fc', // indigo-300
   vacation:    '#c7d2fe', // indigo-200
   sick:        '#c7d2fe',
-  no_clocking: '#d1d5db', // gray-300
-  unknown:     '#e5e7eb', // gray-200
+  no_clocking: '#ddd6fe', // violet-200
+  unknown:     '#ede9fe', // violet-100
   active:      '#818cf8',
   broken:      '#a5b4fc',
 }
@@ -133,7 +133,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     .map(([name, value]) => ({
       name: name === 'no_clocking' ? 'No Clocking' : name.charAt(0).toUpperCase() + name.slice(1),
       value,
-      color: STATUS_COLORS[name] ?? '#e2e8f0',
+      color: STATUS_COLORS[name] ?? '#c7d2fe',
     }))
 
   const dates = [...new Set(recs.map(r => r.date))].sort()
@@ -150,7 +150,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     <div className="space-y-5 max-w-7xl mx-auto">
       <div>
         <h1 className="text-xl font-bold text-slate-800">Dashboard</h1>
-        <p className="text-xs text-slate-400 mt-0.5">Attendance overview</p>
+        <p className="text-xs text-slate-600 mt-0.5">Attendance overview</p>
       </div>
 
       <DashboardFilters employees={emps} defaults={{ from, to, period, employee: empFilter }} />
@@ -160,7 +160,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
         {stats.map(({ label, value }) => (
           <div key={label} className="bg-white rounded-lg border border-slate-200 p-3">
             <p className="text-xl font-bold text-slate-800">{value}</p>
-            <p className="text-[11px] text-slate-400 mt-0.5">{label}</p>
+            <p className="text-[11px] text-slate-600 mt-0.5">{label}</p>
           </div>
         ))}
       </div>
@@ -172,7 +172,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
           {chartData.length > 0 ? (
             <DailyAttendanceChart data={chartData} />
           ) : (
-            <div className="h-[240px] flex items-center justify-center text-slate-300 text-sm">No data</div>
+            <div className="h-[240px] flex items-center justify-center text-slate-500 text-sm">No data</div>
           )}
         </div>
         <div className="lg:col-span-2 bg-white rounded-lg border border-slate-200 p-4">
@@ -180,7 +180,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
           {donutData.length > 0 ? (
             <StatusDonutChart data={donutData} />
           ) : (
-            <div className="h-[240px] flex items-center justify-center text-slate-300 text-sm">No data</div>
+            <div className="h-[240px] flex items-center justify-center text-slate-500 text-sm">No data</div>
           )}
         </div>
       </div>
@@ -191,7 +191,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
           <div className="px-4 py-3 border-b border-slate-100">
             <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
               Employee Grid
-              {selectedEmpName && <span className="text-slate-300 font-normal normal-case ml-2">— {selectedEmpName}</span>}
+              {selectedEmpName && <span className="text-slate-500 font-normal normal-case ml-2">— {selectedEmpName}</span>}
             </h2>
           </div>
           <AttendanceGrid employees={gridEmployees} dates={dates} />

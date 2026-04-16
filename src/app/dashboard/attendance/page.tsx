@@ -58,7 +58,7 @@ export default async function AttendancePage({ searchParams }: PageProps) {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold text-slate-800">Attendance</h1>
-          <p className="text-xs text-slate-400 mt-0.5">Daily attendance records</p>
+          <p className="text-xs text-slate-600 mt-0.5">Daily attendance records</p>
         </div>
         <CsvImport />
       </div>
@@ -71,13 +71,13 @@ export default async function AttendancePage({ searchParams }: PageProps) {
 
       <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
         <div className="px-4 py-2.5 border-b border-slate-100 flex items-center justify-between">
-          <p className="text-xs text-slate-400">{count ?? 0} records · {from === to ? from : `${from} → ${to}`}</p>
+          <p className="text-xs text-slate-600">{count ?? 0} records · {from === to ? from : `${from} → ${to}`}</p>
         </div>
 
         {!records || records.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center">
-            <p className="text-slate-400 text-sm">No records found</p>
-            <p className="text-slate-300 text-xs mt-1">Import a CSV or adjust filters</p>
+            <p className="text-slate-600 text-sm">No records found</p>
+            <p className="text-slate-500 text-xs mt-1">Import a CSV or adjust filters</p>
           </div>
         ) : (
           <>
@@ -86,13 +86,13 @@ export default async function AttendancePage({ searchParams }: PageProps) {
               <table className="w-full text-xs">
                 <thead>
                   <tr className="bg-slate-50 text-left">
-                    <th className="px-4 py-2.5 font-medium text-slate-400 text-[10px] uppercase tracking-wider">Date</th>
-                    <th className="px-4 py-2.5 font-medium text-slate-400 text-[10px] uppercase tracking-wider">Employee</th>
-                    <th className="px-4 py-2.5 font-medium text-slate-400 text-[10px] uppercase tracking-wider">Status</th>
-                    <th className="px-4 py-2.5 font-medium text-slate-400 text-[10px] uppercase tracking-wider">In</th>
-                    <th className="px-4 py-2.5 font-medium text-slate-400 text-[10px] uppercase tracking-wider">Out</th>
-                    <th className="px-4 py-2.5 font-medium text-slate-400 text-[10px] uppercase tracking-wider">Hours</th>
-                    <th className="px-4 py-2.5 font-medium text-slate-400 text-[10px] uppercase tracking-wider">Notes</th>
+                    <th className="px-4 py-2.5 font-medium text-slate-600 text-[10px] uppercase tracking-wider">Date</th>
+                    <th className="px-4 py-2.5 font-medium text-slate-600 text-[10px] uppercase tracking-wider">Employee</th>
+                    <th className="px-4 py-2.5 font-medium text-slate-600 text-[10px] uppercase tracking-wider">Status</th>
+                    <th className="px-4 py-2.5 font-medium text-slate-600 text-[10px] uppercase tracking-wider">In</th>
+                    <th className="px-4 py-2.5 font-medium text-slate-600 text-[10px] uppercase tracking-wider">Out</th>
+                    <th className="px-4 py-2.5 font-medium text-slate-600 text-[10px] uppercase tracking-wider">Hours</th>
+                    <th className="px-4 py-2.5 font-medium text-slate-600 text-[10px] uppercase tracking-wider">Notes</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
@@ -106,7 +106,7 @@ export default async function AttendancePage({ searchParams }: PageProps) {
                         <td className="px-4 py-2.5 text-slate-500 whitespace-nowrap font-mono">{r.time_in ? r.time_in.slice(0, 5) : '—'}</td>
                         <td className="px-4 py-2.5 text-slate-500 whitespace-nowrap font-mono">{r.time_out ? r.time_out.slice(0, 5) : '—'}</td>
                         <td className="px-4 py-2.5 text-slate-500 whitespace-nowrap">{r.hours_worked != null ? `${Math.floor(r.hours_worked)}h ${Math.round((r.hours_worked % 1) * 60)}m` : '—'}</td>
-                        <td className="px-4 py-2.5 text-slate-400 max-w-xs truncate">{r.comments || '—'}</td>
+                        <td className="px-4 py-2.5 text-slate-600 max-w-xs truncate">{r.comments || '—'}</td>
                       </tr>
                     )
                   })}
@@ -124,7 +124,7 @@ export default async function AttendancePage({ searchParams }: PageProps) {
                       <span className="text-xs font-medium text-slate-700">{emp?.full_name ?? '—'}</span>
                       <StatusBadge status={r.status} />
                     </div>
-                    <div className="flex items-center gap-3 text-[11px] text-slate-400">
+                    <div className="flex items-center gap-3 text-[11px] text-slate-600">
                       <span>{r.date}</span>
                       <span>{r.time_in ? r.time_in.slice(0, 5) : '—'} → {r.time_out ? r.time_out.slice(0, 5) : '—'}</span>
                       <span>{r.hours_worked != null ? `${Math.floor(r.hours_worked)}h ${Math.round((r.hours_worked % 1) * 60)}m` : '—'}</span>
@@ -142,7 +142,7 @@ export default async function AttendancePage({ searchParams }: PageProps) {
           const endPage = Math.min(totalPages, startPage + 4)
           const pages = Array.from({ length: endPage - startPage + 1 }, (_, i) => startPage + i)
           return (
-            <div className="px-4 py-2.5 border-t border-slate-100 flex items-center justify-between text-xs text-slate-400">
+            <div className="px-4 py-2.5 border-t border-slate-100 flex items-center justify-between text-xs text-slate-600">
               <span>{offset + 1}–{Math.min(offset + PAGE_SIZE, count ?? 0)} of {count}</span>
               <div className="flex items-center gap-1">
                 {page > 1 && <a href={`${baseHref}&page=${page - 1}`} className="px-2 py-1 rounded border border-slate-200 hover:bg-slate-50 text-[11px]">Prev</a>}

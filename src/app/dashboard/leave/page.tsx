@@ -24,7 +24,7 @@ export default async function LeavePage() {
     <div className="space-y-5 max-w-7xl mx-auto">
       <div>
         <h1 className="text-xl font-bold text-slate-800">Leave</h1>
-        <p className="text-xs text-slate-400 mt-0.5">Last 30 days · {from} → {to}</p>
+        <p className="text-xs text-slate-600 mt-0.5">Last 30 days · {from} → {to}</p>
       </div>
 
       <div className="grid grid-cols-3 gap-3">
@@ -35,20 +35,20 @@ export default async function LeavePage() {
         ].map(({ label, value }) => (
           <div key={label} className="bg-white rounded-lg border border-slate-200 p-3">
             <p className="text-xl font-bold text-slate-800">{value}</p>
-            <p className="text-[11px] text-slate-400 mt-0.5">{label}</p>
+            <p className="text-[11px] text-slate-600 mt-0.5">{label}</p>
           </div>
         ))}
       </div>
 
       <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
         <div className="px-4 py-2.5 border-b border-slate-100">
-          <p className="text-xs text-slate-400">{records?.length ?? 0} record{records?.length !== 1 ? 's' : ''}</p>
+          <p className="text-xs text-slate-600">{records?.length ?? 0} record{records?.length !== 1 ? 's' : ''}</p>
         </div>
 
         {!records || records.length === 0 ? (
           <div className="py-16 text-center">
-            <p className="text-slate-400 text-sm">No leave records</p>
-            <p className="text-slate-300 text-xs mt-1">Import data via the Attendance page</p>
+            <p className="text-slate-600 text-sm">No leave records</p>
+            <p className="text-slate-500 text-xs mt-1">Import data via the Attendance page</p>
           </div>
         ) : (
           <>
@@ -56,11 +56,11 @@ export default async function LeavePage() {
               <table className="w-full text-xs">
                 <thead>
                   <tr className="bg-slate-50 text-left">
-                    <th className="px-4 py-2.5 font-medium text-slate-400 text-[10px] uppercase tracking-wider">Employee</th>
-                    <th className="px-4 py-2.5 font-medium text-slate-400 text-[10px] uppercase tracking-wider">Unit</th>
-                    <th className="px-4 py-2.5 font-medium text-slate-400 text-[10px] uppercase tracking-wider">Date</th>
-                    <th className="px-4 py-2.5 font-medium text-slate-400 text-[10px] uppercase tracking-wider">Type</th>
-                    <th className="px-4 py-2.5 font-medium text-slate-400 text-[10px] uppercase tracking-wider">Notes</th>
+                    <th className="px-4 py-2.5 font-medium text-slate-600 text-[10px] uppercase tracking-wider">Employee</th>
+                    <th className="px-4 py-2.5 font-medium text-slate-600 text-[10px] uppercase tracking-wider">Unit</th>
+                    <th className="px-4 py-2.5 font-medium text-slate-600 text-[10px] uppercase tracking-wider">Date</th>
+                    <th className="px-4 py-2.5 font-medium text-slate-600 text-[10px] uppercase tracking-wider">Type</th>
+                    <th className="px-4 py-2.5 font-medium text-slate-600 text-[10px] uppercase tracking-wider">Notes</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
@@ -76,7 +76,7 @@ export default async function LeavePage() {
                             {r.status === 'sick' ? 'Sick' : 'Vacation'}
                           </span>
                         </td>
-                        <td className="px-4 py-2.5 text-slate-400 max-w-xs truncate">{r.comments ?? '—'}</td>
+                        <td className="px-4 py-2.5 text-slate-600 max-w-xs truncate">{r.comments ?? '—'}</td>
                       </tr>
                     )
                   })}
@@ -95,7 +95,7 @@ export default async function LeavePage() {
                         {r.status === 'sick' ? 'Sick' : 'Vacation'}
                       </span>
                     </div>
-                    <div className="flex items-center gap-3 text-[11px] text-slate-400">
+                    <div className="flex items-center gap-3 text-[11px] text-slate-600">
                       <span>{r.date}</span>
                       <span>{emp?.unit ?? '—'}</span>
                     </div>

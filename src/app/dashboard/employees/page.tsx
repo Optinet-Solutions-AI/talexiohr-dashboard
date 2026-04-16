@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic'
 const GROUP_STYLE: Record<string, { label: string; cls: string }> = {
   office_malta: { label: 'Malta Office', cls: 'bg-indigo-600 text-white' },
   remote:       { label: 'Remote',       cls: 'bg-indigo-100 text-indigo-700' },
-  unclassified: { label: 'Unclassified', cls: 'bg-gray-100 text-gray-500' },
+  unclassified: { label: 'Unclassified', cls: 'bg-slate-100 text-slate-600' },
 }
 
 export default async function EmployeesPage() {
@@ -25,7 +25,7 @@ export default async function EmployeesPage() {
     <div className="space-y-5 max-w-7xl mx-auto">
       <div>
         <h1 className="text-xl font-bold text-slate-800">Employees</h1>
-        <p className="text-xs text-slate-400 mt-0.5">{emps.length} total</p>
+        <p className="text-xs text-slate-600 mt-0.5">{emps.length} total</p>
       </div>
 
       <div className="grid grid-cols-3 gap-3">
@@ -36,20 +36,20 @@ export default async function EmployeesPage() {
         ].map(({ label, value }) => (
           <div key={label} className="bg-white rounded-lg border border-slate-200 p-3">
             <p className="text-xl font-bold text-slate-800">{value}</p>
-            <p className="text-[11px] text-slate-400 mt-0.5">{label}</p>
+            <p className="text-[11px] text-slate-600 mt-0.5">{label}</p>
           </div>
         ))}
       </div>
 
       <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
         <div className="px-4 py-2.5 border-b border-slate-100 flex items-center justify-between">
-          <p className="text-xs text-slate-400">{emps.length} employees</p>
+          <p className="text-xs text-slate-600">{emps.length} employees</p>
           <a href="/dashboard/settings" className="text-xs text-slate-500 hover:text-slate-700">Manage groups</a>
         </div>
 
         {emps.length === 0 ? (
           <div className="py-16 text-center">
-            <p className="text-slate-400 text-sm">No employees yet</p>
+            <p className="text-slate-600 text-sm">No employees yet</p>
           </div>
         ) : (
           <>
@@ -57,11 +57,11 @@ export default async function EmployeesPage() {
               <table className="w-full text-xs">
                 <thead>
                   <tr className="bg-slate-50 text-left">
-                    <th className="px-4 py-2.5 font-medium text-slate-400 text-[10px] uppercase tracking-wider">Name</th>
-                    <th className="px-4 py-2.5 font-medium text-slate-400 text-[10px] uppercase tracking-wider">Code</th>
-                    <th className="px-4 py-2.5 font-medium text-slate-400 text-[10px] uppercase tracking-wider">Group</th>
-                    <th className="px-4 py-2.5 font-medium text-slate-400 text-[10px] uppercase tracking-wider">Unit</th>
-                    <th className="px-4 py-2.5 font-medium text-slate-400 text-[10px] uppercase tracking-wider">Schedule</th>
+                    <th className="px-4 py-2.5 font-medium text-slate-600 text-[10px] uppercase tracking-wider">Name</th>
+                    <th className="px-4 py-2.5 font-medium text-slate-600 text-[10px] uppercase tracking-wider">Code</th>
+                    <th className="px-4 py-2.5 font-medium text-slate-600 text-[10px] uppercase tracking-wider">Group</th>
+                    <th className="px-4 py-2.5 font-medium text-slate-600 text-[10px] uppercase tracking-wider">Unit</th>
+                    <th className="px-4 py-2.5 font-medium text-slate-600 text-[10px] uppercase tracking-wider">Schedule</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
@@ -70,10 +70,10 @@ export default async function EmployeesPage() {
                     return (
                       <tr key={emp.id} className="hover:bg-slate-50/50 transition-colors">
                         <td className="px-4 py-2.5 font-medium text-slate-700">{emp.full_name}</td>
-                        <td className="px-4 py-2.5 text-slate-400 font-mono text-[11px]">{emp.talexio_id ?? '—'}</td>
+                        <td className="px-4 py-2.5 text-slate-600 font-mono text-[11px]">{emp.talexio_id ?? '—'}</td>
                         <td className="px-4 py-2.5"><span className={`inline-flex items-center rounded px-2 py-0.5 text-[11px] font-medium ${g.cls}`}>{g.label}</span></td>
                         <td className="px-4 py-2.5 text-slate-500">{emp.unit ?? '—'}</td>
-                        <td className="px-4 py-2.5 text-slate-400">{emp.job_schedule ?? '—'}</td>
+                        <td className="px-4 py-2.5 text-slate-600">{emp.job_schedule ?? '—'}</td>
                       </tr>
                     )
                   })}
@@ -90,7 +90,7 @@ export default async function EmployeesPage() {
                       <span className="text-xs font-medium text-slate-700">{emp.full_name}</span>
                       <span className={`inline-flex items-center rounded px-2 py-0.5 text-[10px] font-medium ${g.cls}`}>{g.label}</span>
                     </div>
-                    <div className="flex items-center gap-3 text-[11px] text-slate-400">
+                    <div className="flex items-center gap-3 text-[11px] text-slate-600">
                       <span>{emp.talexio_id ?? '—'}</span>
                       <span>{emp.unit ?? '—'}</span>
                     </div>

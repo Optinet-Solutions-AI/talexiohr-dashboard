@@ -103,19 +103,19 @@ export default function DashboardFilters({ employees, defaults }: { employees: E
         </div>
 
         <div className="flex items-center gap-1">
-          <button onClick={() => step(-1)} className="p-1 rounded border border-slate-200 text-slate-400 hover:text-slate-600 hover:bg-slate-50"><ChevronLeft size={14} /></button>
-          <button onClick={() => step(1)} disabled={!canNext} className={`p-1 rounded border border-slate-200 ${canNext ? 'text-slate-400 hover:text-slate-600 hover:bg-slate-50' : 'text-slate-200 cursor-not-allowed'}`}><ChevronRight size={14} /></button>
+          <button onClick={() => step(-1)} className="p-1 rounded border border-slate-200 text-slate-600 hover:text-slate-600 hover:bg-slate-50"><ChevronLeft size={14} /></button>
+          <button onClick={() => step(1)} disabled={!canNext} className={`p-1 rounded border border-slate-200 ${canNext ? 'text-slate-600 hover:text-slate-600 hover:bg-slate-50' : 'text-slate-500 cursor-not-allowed'}`}><ChevronRight size={14} /></button>
         </div>
 
         <span className="text-sm font-medium text-slate-700">{rangeLabel(period, from, to)}</span>
-        <button onClick={() => changePeriod(period)} className="text-xs text-slate-400 hover:text-slate-600">Today</button>
+        <button onClick={() => changePeriod(period)} className="text-xs text-slate-600 hover:text-slate-600">Today</button>
       </div>
 
       {/* Row 2: date pickers + employee */}
       <div className="flex flex-wrap items-center gap-2">
         <input type="date" value={from} onChange={e => { setFrom(e.target.value); nav(e.target.value, to, period, empId) }}
           className="rounded-md border border-slate-200 px-2 py-1.5 text-xs text-slate-600 focus:outline-none focus:ring-1 focus:ring-slate-400" />
-        <span className="text-xs text-slate-300">to</span>
+        <span className="text-xs text-slate-500">to</span>
         <input type="date" value={to} onChange={e => { setTo(e.target.value); nav(from, e.target.value, period, empId) }}
           className="rounded-md border border-slate-200 px-2 py-1.5 text-xs text-slate-600 focus:outline-none focus:ring-1 focus:ring-slate-400" />
 
@@ -125,11 +125,11 @@ export default function DashboardFilters({ employees, defaults }: { employees: E
         <div className="relative w-full sm:w-auto" ref={ref}>
           <div onClick={() => setOpen(true)}
             className="flex items-center gap-2 rounded-md border border-slate-200 px-2.5 py-1.5 text-xs text-slate-600 cursor-pointer sm:min-w-[200px] hover:border-slate-300 focus-within:ring-1 focus-within:ring-slate-400">
-            <Search size={12} className="text-slate-300 shrink-0" />
+            <Search size={12} className="text-slate-500 shrink-0" />
             {open
               ? <input autoFocus value={search} onChange={e => setSearch(e.target.value)} placeholder="Search..." className="flex-1 outline-none text-xs bg-transparent" />
-              : <span className={`flex-1 truncate ${selectedName ? 'text-slate-700' : 'text-slate-300'}`}>{selectedName ?? 'All employees'}</span>}
-            {empId && <button onClick={e => { e.stopPropagation(); changeEmp('') }} className="text-slate-300 hover:text-slate-500"><X size={12} /></button>}
+              : <span className={`flex-1 truncate ${selectedName ? 'text-slate-700' : 'text-slate-500'}`}>{selectedName ?? 'All employees'}</span>}
+            {empId && <button onClick={e => { e.stopPropagation(); changeEmp('') }} className="text-slate-500 hover:text-slate-500"><X size={12} /></button>}
           </div>
           {open && (
             <div className="absolute top-full left-0 right-0 mt-1 bg-white rounded-md border border-slate-200 shadow-md z-50 max-h-56 overflow-y-auto">
@@ -137,7 +137,7 @@ export default function DashboardFilters({ employees, defaults }: { employees: E
               {filtered.map(emp => (
                 <button key={emp.id} onClick={() => changeEmp(emp.id)} className={`w-full text-left px-3 py-2 text-xs hover:bg-slate-50 ${empId === emp.id ? 'font-medium text-indigo-700 bg-indigo-50' : 'text-gray-600'}`}>{emp.full_name}</button>
               ))}
-              {filtered.length === 0 && <p className="px-3 py-2 text-xs text-slate-300 text-center">No matches</p>}
+              {filtered.length === 0 && <p className="px-3 py-2 text-xs text-slate-500 text-center">No matches</p>}
             </div>
           )}
         </div>
