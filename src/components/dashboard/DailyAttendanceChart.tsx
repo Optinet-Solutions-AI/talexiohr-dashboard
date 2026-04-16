@@ -29,7 +29,7 @@ const LABELS = {
   vacation: 'Vacation', no_clocking: 'No Clocking', unknown: 'Unknown',
 }
 
-export default function DailyAttendanceChart({ data }: { data: DayData[] }) {
+export default function DailyAttendanceChart({ data, barSize }: { data: DayData[]; barSize?: number }) {
   return (
     <ResponsiveContainer width="100%" height={260}>
       <BarChart data={data} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
