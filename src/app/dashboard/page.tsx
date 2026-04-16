@@ -107,10 +107,31 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   const sp = await searchParams
   const supabase = createAdminClient()
 
-  const to   = sp.to   ?? format(new Date(), 'yyyy-MM-dd')
-  const from = sp.from  ?? format(startOfMonth(new Date()), 'yyyy-MM-dd')
+  const today = format(new Date(), 'yyyy-MM-dd')
   const period   = sp.period   ?? 'daily'
   const empFilter = sp.employee ?? ''
+
+  // Smart defaults based on selected period
+  const defaultFrom = (() => {
+    const now = new Date()
+    switch (period) {
+      case 'weekly': {
+        const d = new Date(now)
+        const day = d.getDay()
+        d.setDate(d.getDate() - (day === 0 ? 6 : day - 1)) // Monday
+        return format(d, 'yyyy-MM-dd')
+      }
+      case 'monthly':
+        return format(startOfMonth(now), 'yyyy-MM-dd')
+      case 'yearly':
+        return format(new Date(now.getFullYear(), 0, 1), 'yyyy-MM-dd')
+      default: // daily
+        return today
+    }
+  })()
+
+  const from = sp.from ?? defaultFrom
+  const to   = sp.to   ?? today
 
   // Fetch employees for filter dropdown
   const { data: employees } = await supabase
@@ -200,9 +221,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-        <p className="text-sm text-gray-500 mt-0.5">
-          {selectedEmpName ? selectedEmpName : 'All employees'} · {from} to {to} · {periodLabel}
-        </p>
+        <p className="text-sm text-gray-500 mt-0.5">Malta office attendance overview</p>
       </div>
 
       {/* Filters */}
