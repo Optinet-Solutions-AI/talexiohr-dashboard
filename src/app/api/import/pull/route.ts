@@ -174,7 +174,7 @@ async function saveClockings(logs: TimeLog[], dateFrom: string) {
   for (const [, agg] of grouped) {
     const { data: empRow } = await supabase.from('employees')
       .upsert({ talexio_id: agg.empId, first_name: agg.firstName, last_name: agg.lastName }, { onConflict: 'talexio_id' })
-      .select('id').single()
+      .select('id, group_type').single()
     if (!empRow) continue
     empSet.add(empRow.id)
 
@@ -188,13 +188,12 @@ async function saveClockings(logs: TimeLog[], dateFrom: string) {
     const lngOut = first.locationLongOut ?? null
 
     const hasOffice = sessions.some(s => isOfficeName(s.workLocationIn?.name ?? s.workCode?.name ?? null) || isOfficeGps(s.locationLatIn ?? s.workLocationIn?.lat ?? null, s.locationLongIn ?? s.workLocationIn?.long ?? null))
-    const hasWfh = sessions.some(s => (s.workLocationIn?.name ?? '').toLowerCase().includes('wfh') || (s.workLocationIn?.name ?? '').toLowerCase().includes('work from home'))
     const hasActive = sessions.some(s => (s.label ?? '').toLowerCase().includes('active'))
     const allBroken = sessions.every(s => (s.label ?? '').toLowerCase().includes('broken') || (s.label ?? '').toLowerCase().includes('active'))
+    const isMaltaEmployee = empRow.group_type === 'office_malta'
 
-    let status = 'remote'
+    let status = isMaltaEmployee ? 'wfh' : 'remote' // Malta not at office = WFH
     if (hasOffice) status = 'office'
-    else if (hasWfh) status = 'wfh'
     else if (hasActive) status = 'active'
     else if (allBroken) status = 'broken'
 

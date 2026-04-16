@@ -65,9 +65,10 @@ export async function POST(req: NextRequest) {
       for (const r of rows) { if (!empMap.has(r.code)) empMap.set(r.code, { firstName: r.firstName, lastName: r.lastName, unit: r.unit }) }
 
       const dbEmpMap = new Map<string, string>()
+      const empGroupMap = new Map<string, string>() // code → group_type
       for (const [code, emp] of empMap) {
-        const { data } = await supabase.from('employees').upsert({ talexio_id: code, first_name: emp.firstName, last_name: emp.lastName }, { onConflict: 'talexio_id' }).select('id').single()
-        if (data) dbEmpMap.set(code, data.id)
+        const { data } = await supabase.from('employees').upsert({ talexio_id: code, first_name: emp.firstName, last_name: emp.lastName }, { onConflict: 'talexio_id' }).select('id, group_type').single()
+        if (data) { dbEmpMap.set(code, data.id); empGroupMap.set(code, data.group_type ?? 'unclassified') }
       }
 
       // Group by employee+date
@@ -93,7 +94,10 @@ export async function POST(req: NextRequest) {
         const hasOffice = sessions.some(s => isOfficeName(s.locationIn) || isOfficeName(s.locationOut) || isOfficeGps(s.latIn, s.lngIn) || isOfficeGps(s.latOut, s.lngOut))
         const allBroken = sessions.every(s => s.isBroken || s.isActive)
         const hasActive = sessions.some(s => s.isActive)
-        let status = 'remote'
+        const group = empGroupMap.get(code) ?? 'unclassified'
+        const isMaltaEmployee = group === 'office_malta'
+
+        let status = isMaltaEmployee ? 'wfh' : 'remote' // Malta employees not at office = WFH, Remote employees = remote
         if (hasOffice) status = 'office'
         else if (hasActive) status = 'active'
         else if (allBroken) status = 'broken'
@@ -119,7 +123,42 @@ export async function POST(req: NextRequest) {
         saved++
       }
 
-      return NextResponse.json({ ok: true, saved, skipped, employees: dbEmpMap.size })
+      // Generate no_clocking records for Malta Office employees on working days with no record
+      let noClockingGenerated = 0
+      if (rows.length > 0) {
+        const allDates = [...new Set(rows.map(r => r.date))].sort()
+        const dateFrom = allDates[0], dateTo = allDates[allDates.length - 1]
+
+        // Get Malta Office employees
+        const { data: maltaEmps } = await supabase.from('employees').select('id').eq('group_type', 'office_malta').eq('excluded', false)
+
+        if (maltaEmps && maltaEmps.length > 0) {
+          // Generate all weekdays in range
+          const workdays: string[] = []
+          const d = new Date(dateFrom + 'T00:00:00')
+          const end = new Date(dateTo + 'T00:00:00')
+          while (d <= end) {
+            const dow = d.getDay()
+            if (dow >= 1 && dow <= 5) workdays.push(d.toISOString().slice(0, 10))
+            d.setDate(d.getDate() + 1)
+          }
+
+          for (const emp of maltaEmps) {
+            for (const wd of workdays) {
+              const { data: existing } = await supabase.from('attendance_records').select('id').eq('employee_id', emp.id).eq('date', wd).maybeSingle()
+              if (!existing) {
+                await supabase.from('attendance_records').insert({
+                  employee_id: emp.id, date: wd, status: 'no_clocking',
+                  comments: 'No clocking record for this working day', updated_at: new Date().toISOString(),
+                })
+                noClockingGenerated++
+              }
+            }
+          }
+        }
+      }
+
+      return NextResponse.json({ ok: true, saved, skipped, noClockingGenerated, employees: dbEmpMap.size })
     }
 
     if (fileType === 'leave') {
