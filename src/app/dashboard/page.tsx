@@ -1,5 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/admin'
-import { format, subDays, startOfWeek, startOfMonth, startOfYear, eachDayOfInterval, eachWeekOfInterval, eachMonthOfInterval, eachYearOfInterval } from 'date-fns'
+import { format, startOfMonth, startOfYear, eachDayOfInterval, eachWeekOfInterval, eachMonthOfInterval, eachYearOfInterval } from 'date-fns'
 import { Users, ClipboardList, Building2, Home, MapPin, PlaneTakeoff } from 'lucide-react'
 import DailyAttendanceChart, { type DayData } from '@/components/dashboard/DailyAttendanceChart'
 import StatusDonutChart, { type StatusSlice } from '@/components/dashboard/StatusDonutChart'
@@ -108,7 +108,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   const supabase = createAdminClient()
 
   const to   = sp.to   ?? format(new Date(), 'yyyy-MM-dd')
-  const from = sp.from  ?? format(subDays(new Date(), 13), 'yyyy-MM-dd')
+  const from = sp.from  ?? format(startOfMonth(new Date()), 'yyyy-MM-dd')
   const period   = sp.period   ?? 'daily'
   const empFilter = sp.employee ?? ''
 
