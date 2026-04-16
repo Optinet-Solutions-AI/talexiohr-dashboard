@@ -8,7 +8,7 @@ const STATUS_CONFIG: Record<string, { color: string; label: string }> = {
   remote:      { color: 'bg-teal-400',    label: 'Remote' },
   vacation:    { color: 'bg-violet-400',  label: 'Leave' },
   sick:        { color: 'bg-red-400',     label: 'Sick' },
-  no_clocking: { color: 'bg-zinc-400',     label: 'No Clocking' },
+  no_clocking: { color: 'bg-zinc-400',    label: 'No Clocking' },
   unknown:     { color: 'bg-zinc-300',    label: 'Unknown' },
   active:      { color: 'bg-amber-500',   label: 'No Clock-out' },
   broken:      { color: 'bg-orange-400',  label: 'Broken Clocking' },
@@ -34,8 +34,9 @@ export interface GridEmployee {
 
 export default function AttendanceGrid({ employees, dates }: { employees: GridEmployee[]; dates: string[] }) {
   const [tooltip, setTooltip] = useState<{ name: string; day: GridDay; date: string; x: number; y: number } | null>(null)
+  const [hoverRow, setHoverRow] = useState<string | null>(null)
+  const [hoverCol, setHoverCol] = useState<string | null>(null)
 
-  // Group dates by week
   const weeks = new Map<string, string[]>()
   for (const d of dates) {
     const dt = new Date(d + 'T00:00:00')
@@ -71,32 +72,44 @@ export default function AttendanceGrid({ employees, dates }: { employees: GridEm
               {dates.map(d => {
                 const dt = new Date(d + 'T00:00:00')
                 const isWeekend = dt.getDay() === 0 || dt.getDay() === 6
+                const isColHover = hoverCol === d
                 return (
-                  <th key={d} className={`px-0 py-1 text-center min-w-[24px] w-[24px] ${isWeekend ? 'opacity-40' : ''}`}>
-                    <span className="block text-[9px] font-medium text-slate-500 leading-tight">{dt.toLocaleDateString('en-GB', { weekday: 'narrow' })}</span>
-                    <span className="block text-[9px] text-slate-500 leading-tight">{dt.getDate()}</span>
+                  <th key={d} className={`px-0 py-1 text-center min-w-[24px] w-[24px] transition-colors ${isWeekend ? 'opacity-40' : ''} ${isColHover ? 'bg-indigo-50' : ''}`}>
+                    <span className={`block text-[9px] font-medium leading-tight ${isColHover ? 'text-indigo-600' : 'text-slate-500'}`}>
+                      {dt.toLocaleDateString('en-GB', { weekday: 'narrow' })}
+                    </span>
+                    <span className={`block text-[9px] leading-tight ${isColHover ? 'text-indigo-600' : 'text-slate-500'}`}>
+                      {dt.getDate()}
+                    </span>
                   </th>
                 )
               })}
             </tr>
           </thead>
           <tbody>
-            {employees.map(emp => (
-              <tr key={emp.name} className="group">
-                <td className="sticky left-0 z-10 bg-white px-3 py-1 text-xs font-medium text-slate-700 whitespace-nowrap max-w-[140px] truncate group-hover:bg-slate-50">
-                  {emp.name}
-                </td>
-                {dates.map(date => {
-                  const day = emp.days.find(d => d.date === date)
-                  const s = day?.status ?? 'unknown'
-                  const config = STATUS_CONFIG[s] ?? STATUS_CONFIG.unknown
-                  const dt = new Date(date + 'T00:00:00')
-                  const isWeekend = dt.getDay() === 0 || dt.getDay() === 6
-                  const hasFlag = day?.flags && day.flags.length > 0
+            {employees.map(emp => {
+              const isRowHover = hoverRow === emp.name
+              return (
+                <tr key={emp.name}>
+                  <td className={`sticky left-0 z-10 px-3 py-1 text-xs font-medium whitespace-nowrap max-w-[140px] truncate transition-colors ${isRowHover ? 'bg-indigo-50 text-indigo-700' : 'bg-white text-slate-700'}`}>
+                    {emp.name}
+                  </td>
+                  {dates.map(date => {
+                    const day = emp.days.find(d => d.date === date)
+                    const s = day?.status ?? 'unknown'
+                    const config = STATUS_CONFIG[s] ?? STATUS_CONFIG.unknown
+                    const dt = new Date(date + 'T00:00:00')
+                    const isWeekend = dt.getDay() === 0 || dt.getDay() === 6
+                    const hasFlag = day?.flags && day.flags.length > 0
+                    const isCross = isRowHover || hoverCol === date
 
-                  return (
-                    <td key={date} className={`px-0 py-1 text-center ${isWeekend ? 'opacity-40' : ''}`}>
-                      <div className="relative">
+                    return (
+                      <td
+                        key={date}
+                        className={`px-0 py-1 text-center transition-colors ${isWeekend && !isCross ? 'opacity-40' : ''} ${isCross ? 'bg-indigo-50/50' : ''}`}
+                        onMouseEnter={() => { setHoverRow(emp.name); setHoverCol(date) }}
+                        onMouseLeave={() => { setHoverRow(null); setHoverCol(null) }}
+                      >
                         <div
                           className={`w-[18px] h-[18px] rounded-[4px] mx-auto cursor-default ${config.color} transition-transform hover:scale-125 ${hasFlag ? 'ring-2 ring-rose-500' : ''}`}
                           onMouseEnter={e => {
@@ -105,25 +118,25 @@ export default function AttendanceGrid({ employees, dates }: { employees: GridEm
                           }}
                           onMouseLeave={() => setTooltip(null)}
                         />
+                      </td>
+                    )
+                  })}
+                  {/* Summary column */}
+                  <td className={`sticky right-0 z-10 border-l border-slate-200 px-2 py-1 text-center min-w-[56px] transition-colors ${isRowHover ? 'bg-indigo-50' : 'bg-white'}`}>
+                    {emp.completedDays != null && emp.completedDays > 0 ? (
+                      <div title={`${emp.totalHours}h total / ${emp.completedDays} days`}>
+                        <span className={`text-xs font-bold ${(emp.avgHours ?? 0) < 7 ? 'text-red-600' : (emp.avgHours ?? 0) < 8 ? 'text-amber-600' : 'text-slate-800'}`}>
+                          {emp.avgHours?.toFixed(1)}
+                        </span>
+                        <span className="block text-[9px] text-slate-500">{emp.totalHours}h / {emp.completedDays}d</span>
                       </div>
-                    </td>
-                  )
-                })}
-                {/* Summary column */}
-                <td className="sticky right-0 z-10 bg-white border-l border-slate-200 px-2 py-1 text-center min-w-[56px] group-hover:bg-slate-50">
-                  {emp.completedDays != null && emp.completedDays > 0 ? (
-                    <div title={`${emp.totalHours}h total / ${emp.completedDays} days`}>
-                      <span className={`text-xs font-bold ${(emp.avgHours ?? 0) < 7 ? 'text-red-600' : (emp.avgHours ?? 0) < 8 ? 'text-amber-600' : 'text-slate-800'}`}>
-                        {emp.avgHours?.toFixed(1)}
-                      </span>
-                      <span className="block text-[9px] text-slate-500">{emp.totalHours}h / {emp.completedDays}d</span>
-                    </div>
-                  ) : (
-                    <span className="text-[10px] text-slate-500">—</span>
-                  )}
-                </td>
-              </tr>
-            ))}
+                    ) : (
+                      <span className="text-[10px] text-slate-500">—</span>
+                    )}
+                  </td>
+                </tr>
+              )
+            })}
           </tbody>
         </table>
       </div>
