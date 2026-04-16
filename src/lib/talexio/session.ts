@@ -152,22 +152,16 @@ export async function pollBackgroundJob(token: string, jobId: number, maxAttempt
 /**
  * Download the exported file (CSV) from Talexio's file URL.
  */
-export async function downloadExportFile(token: string, fileUrl: string): Promise<string> {
-  // fileUrl might be relative or absolute
+export async function downloadExportFile(_token: string, fileUrl: string): Promise<ArrayBuffer> {
+  // fileUrl is a pre-signed S3 URL — do NOT send auth headers (S3 rejects dual auth)
   const url = fileUrl.startsWith('http') ? fileUrl : `https://api.talexiohr.com${fileUrl}`
 
-  const res = await fetch(url, {
-    headers: {
-      'authorization': `Bearer ${token}`,
-      'client-domain': DOMAIN,
-    },
-    cache: 'no-store',
-  })
+  const res = await fetch(url, { cache: 'no-store' })
 
   if (!res.ok) {
     const body = await res.text().catch(() => '')
     throw new Error(`File download failed (${res.status}): url=${url} body=${body.slice(0, 200)}`)
   }
 
-  return await res.text()
+  return await res.arrayBuffer()
 }

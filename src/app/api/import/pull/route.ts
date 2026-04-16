@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { triggerExport, pollBackgroundJob, downloadExportFile } from '@/lib/talexio/session'
 import { format } from 'date-fns'
+import * as XLSX from 'xlsx'
 
 const OFFICE_LAT = 35.9222072, OFFICE_LNG = 14.4878368, OFFICE_KM = 0.12
 
@@ -79,18 +80,62 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Export completed but no file was generated', jobStatus: job.jobStatus, jobResult: job.result }, { status: 500 })
     }
 
-    // 4. Download the CSV
-    let csvText: string
+    // 4. Download the file (xlsx or csv)
+    let fileBuffer: ArrayBuffer
     try {
-      csvText = await downloadExportFile(token, job.file.fileUrl)
+      fileBuffer = await downloadExportFile(token, job.file.fileUrl)
     } catch (err) {
       return NextResponse.json({ error: err instanceof Error ? err.message : 'Download failed', fileUrl: job.file.fileUrl, jobId }, { status: 500 })
     }
 
-    // 5. Parse the CSV
-    const rows = parseExportCsv(csvText)
+    // 5. Parse xlsx → JSON rows
+    const wb = XLSX.read(fileBuffer, { type: 'array' })
+    const sheet = wb.Sheets[wb.SheetNames[0]]
+    const jsonRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet)
+
+    if (jsonRows.length === 0) {
+      // Return debug info: sheet names, headers
+      const csvPreview = XLSX.utils.sheet_to_csv(sheet).split('\n').slice(0, 5).join('\n')
+      return NextResponse.json({ ok: true, fetched: 0, saved: 0, employees: 0, message: 'File has no data rows', debug: { sheetNames: wb.SheetNames, csvPreview } })
+    }
+
+    // Return column names from first row so we can see the format
+    const columnNames = Object.keys(jsonRows[0])
+    const sampleRows = jsonRows.slice(0, 3)
+
+    // Map xlsx columns to our row format
+    // Columns may vary — try common names from Talexio export
+    const rows = jsonRows.map(r => {
+      const get = (keys: string[]) => { for (const k of keys) { if (r[k] != null && r[k] !== '') return String(r[k]).trim() } return null }
+      const getNum = (keys: string[]) => { const v = get(keys); return v ? parseFloat(v) || null : null }
+      const code = get(['Employee Code', 'EmployeeCode', 'Code', 'Employee code'])
+      const date = get(['Date', 'date'])
+      if (!code || !date) return null
+
+      const timeInRaw = get(['Time In', 'TimeIn', 'Time in', 'Clock In'])
+      const timeOutRaw = get(['Time Out', 'TimeOut', 'Time out', 'Clock Out'])
+
+      return {
+        code,
+        firstName: get(['First Name', 'FirstName', 'First name']) || '',
+        lastName: get(['Last Name', 'LastName', 'Last name']) || '',
+        unit: get(['Unit', 'Department', 'Business Unit']) || '',
+        date: /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : null,
+        locationIn: get(['Location In', 'LocationIn', 'Location in', 'Work Location In']) || null,
+        latIn: getNum(['Lat In', 'LatIn', 'Latitude In']),
+        lngIn: getNum(['Lng In', 'LngIn', 'Longitude In', 'Long In']),
+        locationOut: get(['Location Out', 'LocationOut', 'Location out', 'Work Location Out']) || null,
+        latOut: getNum(['Lat Out', 'LatOut', 'Latitude Out']),
+        lngOut: getNum(['Lng Out', 'LngOut', 'Longitude Out', 'Long Out']),
+        timeIn: timeInRaw && /^\d{1,2}:\d{2}/.test(timeInRaw) ? timeInRaw.slice(0, 5) + ':00' : null,
+        timeOut: timeOutRaw && /^\d{1,2}:\d{2}/.test(timeOutRaw) ? timeOutRaw.slice(0, 5) + ':00' : null,
+        hours: getNum(['Hours', 'Total Hours', 'hours', 'Duration']) || 0,
+        isBroken: timeOutRaw === 'Broken Clocking',
+        isActive: timeOutRaw === 'Active Clocking',
+      }
+    }).filter(Boolean) as NonNullable<ReturnType<typeof parseExportCsv>[number]>[]
     if (rows.length === 0) {
-      return NextResponse.json({ ok: true, fetched: 0, saved: 0, employees: 0, message: 'Export file contained no clocking rows' })
+      return NextResponse.json({ ok: true, fetched: 0, saved: 0, employees: 0, message: 'No valid rows parsed from export', debug: { columnNames, sampleRows: sampleRows.slice(0, 2) } })
     }
 
     const supabase = createAdminClient()
@@ -170,6 +215,7 @@ export async function POST(req: NextRequest) {
       saved,
       employees: dbEmpMap.size,
       dateRange: { from: dateFrom, to: dateTo },
+      debug: { columnNames, sampleRow: sampleRows[0] },
     })
   } catch (err) {
     console.error('[import/pull]', err)
