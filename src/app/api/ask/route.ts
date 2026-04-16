@@ -5,6 +5,7 @@ import { createClient as createServerClient } from '@/lib/supabase/server'
 import { runAgent } from '@/lib/ask/agent'
 import { validateInput, isRelevant, checkRateLimit } from '@/lib/ask/guards'
 import { writeLog } from '@/lib/ask/logging'
+import { buildContextFromToolCalls } from '@/lib/ask/context'
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
 
@@ -69,46 +70,63 @@ export async function POST(req: NextRequest) {
     })
   }
 
-  try {
-    const result = await runAgent({ question, openai, supabase })
-
-    await writeLog(supabase, {
-      userId, question, relevancePassed: true,
-      toolCalls: result.toolCalls,
-      finalAnswer: result.answer,
-      totalTokens: result.totalTokens,
-      totalDurationMs: result.totalDurationMs,
-    })
-
-    // Surface tool-derived counts into the legacy `context` field the UI expects.
-    let employeeCount = 0
-    let recordCount = 0
-    let dateRange: { from: string; to: string } = { from: '', to: '' }
-    for (const tc of result.toolCalls) {
-      if (tc.tool === 'list_employees' || tc.tool === 'check_compliance') {
-        employeeCount = Math.max(employeeCount, tc.rowCount ?? 0)
+  // Accepted question: stream the agent's progress and answer.
+  const stream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      const encoder = new TextEncoder()
+      const send = (event: string, data: unknown) => {
+        const line = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`
+        controller.enqueue(encoder.encode(line))
       }
-      if (tc.tool === 'query_attendance') {
-        recordCount = Math.max(recordCount, tc.rowCount ?? 0)
-        const args = tc.args as { from?: string; to?: string } | null
-        if (args?.from && args?.to) dateRange = { from: args.from, to: args.to }
-      }
-    }
 
-    return NextResponse.json({
-      answer: result.answer,
-      question,
-      context: { dateRange, employeeCount, recordCount },
-      timestamp: new Date().toISOString(),
-      toolCalls: result.toolCalls,
-    })
-  } catch (err) {
-    const message = err instanceof Error ? err.message : 'Failed to generate answer'
-    await writeLog(supabase, {
-      userId, question, relevancePassed: true,
-      error: message, totalDurationMs: Date.now() - started,
-    })
-    console.error('[ask]', err)
-    return NextResponse.json({ error: message }, { status: 500 })
-  }
+      try {
+        const result = await runAgent({
+          question, openai, supabase,
+          onEvent: (e) => {
+            if (e.type === 'status') {
+              const payload: Record<string, unknown> = { stage: e.stage }
+              if (e.message) payload.message = e.message
+              send('status', payload)
+            } else if (e.type === 'token') {
+              send('token', { delta: e.delta })
+            }
+          },
+        })
+
+        send('done', {
+          answer: result.answer,
+          toolCalls: result.toolCalls,
+          context: buildContextFromToolCalls(result.toolCalls),
+          timestamp: new Date().toISOString(),
+        })
+
+        await writeLog(supabase, {
+          userId, question, relevancePassed: true,
+          toolCalls: result.toolCalls,
+          finalAnswer: result.answer,
+          totalTokens: result.totalTokens,
+          totalDurationMs: result.totalDurationMs,
+        })
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Failed to generate answer'
+        send('error', { message })
+        await writeLog(supabase, {
+          userId, question, relevancePassed: true,
+          error: message, totalDurationMs: Date.now() - started,
+        })
+        console.error('[ask]', err)
+      } finally {
+        controller.close()
+      }
+    },
+  })
+
+  return new Response(stream, {
+    headers: {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache, no-transform',
+      'Connection': 'keep-alive',
+      'X-Accel-Buffering': 'no',
+    },
+  })
 }
