@@ -9,7 +9,7 @@ const STATUS_CONFIG: Record<string, { color: string; label: string }> = {
   vacation:    { color: 'bg-violet-400',  label: 'Leave' },
   sick:        { color: 'bg-red-400',     label: 'Sick' },
   no_clocking: { color: 'bg-zinc-400',    label: 'No Clocking' },
-  unknown:     { color: 'bg-zinc-300',    label: 'Unknown' },
+  unknown:     { color: 'bg-zinc-400',    label: 'Unknown' },
   active:      { color: 'bg-amber-500',   label: 'No Clock-out' },
   broken:      { color: 'bg-orange-400',  label: 'Broken Clocking' },
 }
@@ -58,14 +58,14 @@ export default function AttendanceGrid({ employees, dates }: { employees: GridEm
               {[...weeks.entries()].map(([weekKey, weekDates]) => {
                 const ws = new Date(weekKey + 'T00:00:00')
                 return (
-                  <th key={weekKey} colSpan={weekDates.length} className="text-center text-[9px] font-medium text-slate-500 pb-0 pt-2 px-0">
+                  <th key={weekKey} colSpan={weekDates.length} className="text-center text-[9px] font-medium text-slate-600 pb-0 pt-2 px-0">
                     Wk {ws.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
                   </th>
                 )
               })}
-              <th className="sticky right-0 z-20 bg-white border-l border-slate-200 px-2 text-[9px] font-medium text-slate-500 text-center" rowSpan={2}>
+              <th className="sticky right-0 z-20 bg-white border-l border-slate-200 px-2 text-[9px] font-medium text-slate-600 text-center" rowSpan={2}>
                 <span className="block">Avg</span>
-                <span className="block text-slate-500 font-normal">h/day</span>
+                <span className="block text-slate-600 font-normal">h/day</span>
               </th>
             </tr>
             <tr>
@@ -75,10 +75,10 @@ export default function AttendanceGrid({ employees, dates }: { employees: GridEm
                 const isColHover = hoverCol === d
                 return (
                   <th key={d} className={`px-0 py-1 text-center min-w-[24px] w-[24px] transition-colors ${isWeekend ? 'opacity-40' : ''} ${isColHover ? 'bg-indigo-50' : ''}`}>
-                    <span className={`block text-[9px] font-medium leading-tight ${isColHover ? 'text-indigo-600' : 'text-slate-500'}`}>
+                    <span className={`block text-[9px] font-medium leading-tight ${isColHover ? 'text-indigo-600' : 'text-slate-600'}`}>
                       {dt.toLocaleDateString('en-GB', { weekday: 'narrow' })}
                     </span>
-                    <span className={`block text-[9px] leading-tight ${isColHover ? 'text-indigo-600' : 'text-slate-500'}`}>
+                    <span className={`block text-[9px] leading-tight ${isColHover ? 'text-indigo-600' : 'text-slate-600'}`}>
                       {dt.getDate()}
                     </span>
                   </th>
@@ -128,10 +128,10 @@ export default function AttendanceGrid({ employees, dates }: { employees: GridEm
                         <span className={`text-xs font-bold ${(emp.avgHours ?? 0) < 7 ? 'text-red-600' : (emp.avgHours ?? 0) < 8 ? 'text-amber-600' : 'text-slate-800'}`}>
                           {emp.avgHours?.toFixed(1)}
                         </span>
-                        <span className="block text-[9px] text-slate-500">{emp.totalHours}h / {emp.completedDays}d</span>
+                        <span className="block text-[9px] text-slate-600">{emp.totalHours}h / {emp.completedDays}d</span>
                       </div>
                     ) : (
-                      <span className="text-[10px] text-slate-500">—</span>
+                      <span className="text-[10px] text-slate-600">—</span>
                     )}
                   </td>
                 </tr>
