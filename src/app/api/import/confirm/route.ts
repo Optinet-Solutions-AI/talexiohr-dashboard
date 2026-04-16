@@ -1,5 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import * as XLSX from 'xlsx'
+
+async function fileToText(file: File): Promise<string> {
+  if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
+    const buffer = await file.arrayBuffer()
+    const wb = XLSX.read(buffer, { type: 'array' })
+    const sheet = wb.Sheets[wb.SheetNames[0]]
+    return XLSX.utils.sheet_to_csv(sheet)
+  }
+  return await file.text()
+}
 
 const OFFICE_LAT = 35.9222072, OFFICE_LNG = 14.4878368, OFFICE_KM = 0.12
 function gpsKm(lat1: number, lng1: number, lat2: number, lng2: number) {
@@ -27,7 +38,7 @@ export async function POST(req: NextRequest) {
 
     if (!file || !fileType) return NextResponse.json({ error: 'Missing file or type' }, { status: 400 })
 
-    const text = await file.text()
+    const text = await fileToText(file)
     const supabase = createAdminClient()
     const overwrite = mode === 'overwrite'
 

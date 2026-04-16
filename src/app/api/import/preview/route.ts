@@ -1,5 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import * as XLSX from 'xlsx'
+
+// Convert uploaded file to CSV text — supports both .csv and .xlsx
+async function fileToText(file: File): Promise<string> {
+  if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
+    const buffer = await file.arrayBuffer()
+    const wb = XLSX.read(buffer, { type: 'array' })
+    const sheet = wb.Sheets[wb.SheetNames[0]]
+    return XLSX.utils.sheet_to_csv(sheet)
+  }
+  return await file.text()
+}
 
 // ── Clockings CSV Parser ─────────────────────────────────────────────────────
 // Columns: Employee Code, First Name, Last Name, Job Schedule, Unit, Business Unit,
@@ -73,7 +85,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Missing file or type' }, { status: 400 })
     }
 
-    const text = await file.text()
+    const text = await fileToText(file)
     const supabase = createAdminClient()
 
     if (fileType === 'clockings') {

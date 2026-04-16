@@ -95,11 +95,11 @@ export default function ImportUpload({ type, title, description }: { type: FileT
         {/* Idle: file picker */}
         {step === 'idle' && (
           <div>
-            <input ref={inputRef} type="file" accept=".csv" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f) }} />
+            <input ref={inputRef} type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f) }} />
             <button onClick={() => inputRef.current?.click()}
               className="flex items-center gap-2 rounded-md border border-dashed border-slate-300 px-4 py-6 w-full text-sm text-slate-500 hover:border-indigo-400 hover:text-indigo-600 transition-colors justify-center">
               <Upload size={18} />
-              Choose CSV file
+              Choose file (.csv or .xlsx)
             </button>
           </div>
         )}
