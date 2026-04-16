@@ -26,8 +26,9 @@ export async function runAgent(params: {
   openai: OpenAI
   supabase: SupabaseClient
   onEvent?: (e: AgentEvent) => void
+  signal?: AbortSignal
 }): Promise<AskResult> {
-  const { question, openai, supabase, onEvent } = params
+  const { question, openai, supabase, onEvent, signal } = params
   const started = Date.now()
   const today = new Date().toISOString().slice(0, 10)
 
@@ -39,6 +40,9 @@ export async function runAgent(params: {
   let totalTokens = 0
 
   for (let i = 0; i < MAX_ITERATIONS; i++) {
+    if (signal?.aborted) {
+      throw new Error('Client disconnected')
+    }
     onEvent?.({ type: 'status', stage: 'agent_call' })
 
     const response = await openai.chat.completions.create({
@@ -49,7 +53,7 @@ export async function runAgent(params: {
       temperature: 0.2,
       stream: true,
       stream_options: { include_usage: true },
-    })
+    }, { signal })
 
     let content = ''
     const deltaBuffer: string[] = []
@@ -139,6 +143,9 @@ export async function runAgent(params: {
 
     // Execute each tool
     for (const call of reassembled) {
+      if (signal?.aborted) {
+        throw new Error('Client disconnected')
+      }
       onEvent?.({ type: 'status', stage: 'tool_call', message: statusMessageForTool(call.function.name) })
 
       const t0 = Date.now()

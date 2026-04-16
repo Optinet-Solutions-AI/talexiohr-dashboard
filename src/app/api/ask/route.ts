@@ -87,6 +87,7 @@ export async function POST(req: NextRequest) {
       try {
         const result = await runAgent({
           question, openai, supabase,
+          signal: req.signal,
           onEvent: (e) => {
             if (e.type === 'status') {
               const payload: Record<string, unknown> = { stage: e.stage }
@@ -114,12 +115,19 @@ export async function POST(req: NextRequest) {
         })
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to generate answer'
-        send('error', { message })
-        await writeLog(supabase, {
-          userId, question, relevancePassed: true,
-          error: message, totalDurationMs: Date.now() - started,
-        })
-        console.error('[ask]', err)
+        const isClientAbort = req.signal.aborted || message === 'Client disconnected'
+        if (!isClientAbort) {
+          send('error', { message })
+          await writeLog(supabase, {
+            userId, question, relevancePassed: true,
+            error: message, totalDurationMs: Date.now() - started,
+          })
+          console.error('[ask]', err)
+        } else {
+          // Client disconnected — don't pollute ask_ai_logs with spurious errors.
+          // We can't send anything either (controller is likely closed).
+          console.warn('[ask] client disconnected mid-stream')
+        }
       } finally {
         controller.close()
       }

@@ -188,4 +188,18 @@ describe('runAgent (streaming-based)', () => {
       supabase: {} as never,
     })).rejects.toThrow(/token budget/i)
   })
+
+  it('aborts when the signal is already aborted', async () => {
+    const controller = new AbortController()
+    controller.abort()
+    const openai = makeOpenAI([contentStream('unused')])
+    await expect(runAgent({
+      question: 'q',
+      openai: openai as never,
+      supabase: {} as never,
+      signal: controller.signal,
+    })).rejects.toThrow(/disconnected/i)
+    // The OpenAI mock should not have been called at all.
+    expect(openai.chat.completions.create).not.toHaveBeenCalled()
+  })
 })
