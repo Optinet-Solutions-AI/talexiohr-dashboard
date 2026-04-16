@@ -27,6 +27,9 @@ export interface GridDay {
 export interface GridEmployee {
   name: string
   days: GridDay[]
+  totalHours?: number
+  completedDays?: number
+  avgHours?: number
 }
 
 export default function AttendanceGrid({ employees, dates }: { employees: GridEmployee[]; dates: string[] }) {
@@ -59,6 +62,10 @@ export default function AttendanceGrid({ employees, dates }: { employees: GridEm
                   </th>
                 )
               })}
+              <th className="sticky right-0 z-20 bg-white border-l border-slate-200 px-2 text-[9px] font-medium text-slate-500 text-center" rowSpan={2}>
+                <span className="block">Avg</span>
+                <span className="block text-slate-500 font-normal">h/day</span>
+              </th>
             </tr>
             <tr>
               {dates.map(d => {
@@ -102,6 +109,19 @@ export default function AttendanceGrid({ employees, dates }: { employees: GridEm
                     </td>
                   )
                 })}
+                {/* Summary column */}
+                <td className="sticky right-0 z-10 bg-white border-l border-slate-200 px-2 py-1 text-center min-w-[56px] group-hover:bg-slate-50">
+                  {emp.completedDays != null && emp.completedDays > 0 ? (
+                    <div title={`${emp.totalHours}h total / ${emp.completedDays} days`}>
+                      <span className={`text-xs font-bold ${(emp.avgHours ?? 0) < 7 ? 'text-red-600' : (emp.avgHours ?? 0) < 8 ? 'text-amber-600' : 'text-slate-800'}`}>
+                        {emp.avgHours?.toFixed(1)}
+                      </span>
+                      <span className="block text-[9px] text-slate-500">{emp.totalHours}h / {emp.completedDays}d</span>
+                    </div>
+                  ) : (
+                    <span className="text-[10px] text-slate-500">—</span>
+                  )}
+                </td>
               </tr>
             ))}
           </tbody>

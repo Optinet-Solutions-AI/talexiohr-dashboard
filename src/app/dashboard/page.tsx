@@ -177,26 +177,28 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   const gridEmps = empFilter ? emps.filter(e => e.id === empFilter) : emps
   const gridEmployees: GridEmployee[] = gridEmps.map(emp => {
     const empRecords = recs.filter(r => { const e = Array.isArray(r.employees) ? r.employees[0] : r.employees; return e?.id === emp.id })
+    const days = empRecords.map(r => {
+      const flags: string[] = []
+      if ((r.status === 'broken' || r.status === 'active') && r.time_in && !r.time_out) flags.push('No clock-out')
+      if ((r.status === 'broken' || r.status === 'active') && (!r.time_in || r.time_out)) flags.push('Broken')
+      if (r.status === 'office' && r.lat_out && r.lng_out && !isAtOffice(r.lat_out, r.lng_out)) flags.push('Clock-out location mismatch')
+      if (r.status === 'office' && r.lat_in && r.lng_in && !isAtOffice(r.lat_in, r.lng_in)) flags.push('Clock-in location mismatch')
+      return { date: r.date, label: r.status, status: r.status, hours: r.hours_worked, timeIn: r.time_in, timeOut: r.time_out, flags }
+    })
+
+    // Completed workdays = days with valid clock-in AND clock-out (not broken/active)
+    const completedDays = days.filter(d =>
+      !['broken', 'active', 'no_clocking', 'vacation', 'sick', 'unknown'].includes(d.status) &&
+      d.timeIn && d.timeOut
+    )
+    const totalHours = completedDays.reduce((sum, d) => sum + (d.hours ?? 0), 0)
+
     return {
       name: emp.full_name,
-      days: empRecords.map(r => {
-        // Detect flags
-        const flags: string[] = []
-        if ((r.status === 'broken' || r.status === 'active') && r.time_in && !r.time_out) flags.push('No clock-out')
-        if ((r.status === 'broken' || r.status === 'active') && (!r.time_in || r.time_out)) flags.push('Broken')
-        if (r.status === 'office' && r.lat_out && r.lng_out && !isAtOffice(r.lat_out, r.lng_out)) flags.push('Clock-out location mismatch')
-        if (r.status === 'office' && r.lat_in && r.lng_in && !isAtOffice(r.lat_in, r.lng_in)) flags.push('Clock-in location mismatch')
-
-        return {
-          date: r.date,
-          label: r.status,
-          status: r.status,
-          hours: r.hours_worked,
-          timeIn: r.time_in,
-          timeOut: r.time_out,
-          flags,
-        }
-      }),
+      days,
+      totalHours: Math.round(totalHours * 100) / 100,
+      completedDays: completedDays.length,
+      avgHours: completedDays.length > 0 ? Math.round((totalHours / completedDays.length) * 100) / 100 : 0,
     }
   })
 
