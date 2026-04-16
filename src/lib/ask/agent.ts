@@ -3,18 +3,31 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import type { ChatCompletionMessageParam } from 'openai/resources/chat/completions'
 import { getAvailableToolDefinitions, executeTool } from './tools'
 import { buildSystemPrompt } from './systemPrompt'
+import { statusMessageForTool } from './statusMessages'
 import type { AskResult, ToolCallRecord } from './types'
 
 export const MAX_ITERATIONS = 5
 export const MAX_TOKENS_PER_REQUEST = 8000
 export const MAX_TOOL_RESULT_BYTES = 10 * 1024
 
+export type AgentEvent =
+  | { type: 'status'; stage: 'agent_call' | 'tool_call'; message?: string }
+  | { type: 'token'; delta: string }
+
+type AccumulatedToolCall = {
+  index: number
+  id: string
+  name: string
+  argsFragments: string[]
+}
+
 export async function runAgent(params: {
   question: string
   openai: OpenAI
   supabase: SupabaseClient
+  onEvent?: (e: AgentEvent) => void
 }): Promise<AskResult> {
-  const { question, openai, supabase } = params
+  const { question, openai, supabase, onEvent } = params
   const started = Date.now()
   const today = new Date().toISOString().slice(0, 10)
 
@@ -26,58 +39,119 @@ export async function runAgent(params: {
   let totalTokens = 0
 
   for (let i = 0; i < MAX_ITERATIONS; i++) {
-    const res = await openai.chat.completions.create({
+    onEvent?.({ type: 'status', stage: 'agent_call' })
+
+    const response = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
       messages,
       tools: getAvailableToolDefinitions(),
       tool_choice: 'auto',
       temperature: 0.2,
+      stream: true,
     })
-    totalTokens += res.usage?.total_tokens ?? 0
+
+    let content = ''
+    const accToolCalls = new Map<number, AccumulatedToolCall>()
+    let finishReason: string | null | undefined = null
+
+    for await (const chunk of response as AsyncIterable<unknown>) {
+      const c = chunk as {
+        choices?: Array<{
+          delta?: {
+            content?: string | null
+            tool_calls?: Array<{
+              index: number
+              id?: string
+              type?: 'function'
+              function?: { name?: string; arguments?: string }
+            }>
+          }
+          finish_reason?: 'stop' | 'tool_calls' | 'length' | null
+        }>
+        usage?: { total_tokens: number }
+      }
+
+      const choice = c.choices?.[0]
+      const delta = choice?.delta
+      if (!delta) {
+        if (c.usage) totalTokens += c.usage.total_tokens
+        if (choice?.finish_reason) finishReason = choice.finish_reason
+        continue
+      }
+
+      if (typeof delta.content === 'string' && delta.content.length > 0) {
+        content += delta.content
+        onEvent?.({ type: 'token', delta: delta.content })
+      }
+
+      if (delta.tool_calls) {
+        for (const tc of delta.tool_calls) {
+          let entry = accToolCalls.get(tc.index)
+          if (!entry) {
+            entry = { index: tc.index, id: tc.id ?? '', name: tc.function?.name ?? '', argsFragments: [] }
+            accToolCalls.set(tc.index, entry)
+          }
+          if (tc.id) entry.id = tc.id
+          if (tc.function?.name) entry.name = tc.function.name
+          if (tc.function?.arguments) entry.argsFragments.push(tc.function.arguments)
+        }
+      }
+
+      if (choice?.finish_reason) finishReason = choice.finish_reason
+      if (c.usage) totalTokens += c.usage.total_tokens
+    }
+
     if (totalTokens > MAX_TOKENS_PER_REQUEST) {
       throw new Error('Token budget exceeded')
     }
 
-    const msg = res.choices[0]?.message
-    if (!msg) throw new Error('Empty response from OpenAI')
-    messages.push(msg as ChatCompletionMessageParam)
-
-    const calls = msg.tool_calls ?? []
-    if (calls.length === 0) {
+    // If no tool calls, this is the final iteration
+    if (accToolCalls.size === 0) {
       return {
-        answer: msg.content ?? '',
+        answer: content,
         toolCalls,
         totalTokens,
         totalDurationMs: Date.now() - started,
       }
     }
 
-    for (const call of calls) {
+    // Reassemble tool calls and push an assistant message
+    const reassembled = [...accToolCalls.values()].sort((a, b) => a.index - b.index).map(e => ({
+      id: e.id,
+      type: 'function' as const,
+      function: { name: e.name, arguments: e.argsFragments.join('') },
+    }))
+
+    messages.push({
+      role: 'assistant',
+      content: content || null,
+      tool_calls: reassembled,
+    } as ChatCompletionMessageParam)
+
+    // Execute each tool
+    for (const call of reassembled) {
+      onEvent?.({ type: 'status', stage: 'tool_call', message: statusMessageForTool(call.function.name) })
+
       const t0 = Date.now()
       let record: ToolCallRecord
-      let toolOutput: unknown
+      let toolOutput: string
       try {
-        if (call.type !== 'function') {
-          continue
-        }
-        const fn = call.function
-        const out = await executeTool(fn.name, fn.arguments, supabase)
+        const out = await executeTool(call.function.name, call.function.arguments, supabase)
         const serialized = JSON.stringify(out.result)
         const truncated = serialized.length > MAX_TOOL_RESULT_BYTES
         toolOutput = truncated ? serialized.slice(0, MAX_TOOL_RESULT_BYTES) + '"...(truncated)"' : serialized
         record = {
-          tool: fn.name,
-          args: safeJson(fn.arguments),
+          tool: call.function.name,
+          args: safeJson(call.function.arguments),
           rowCount: out.rowCount,
           durationMs: Date.now() - t0,
           truncated,
         }
       } catch (err) {
         toolOutput = JSON.stringify({ error: err instanceof Error ? err.message : String(err) })
-        const fn = call.type === 'function' ? call.function : { name: call.type, arguments: '{}' }
         record = {
-          tool: fn.name,
-          args: safeJson(fn.arguments),
+          tool: call.function.name,
+          args: safeJson(call.function.arguments),
           rowCount: null,
           durationMs: Date.now() - t0,
           truncated: false,
@@ -88,9 +162,12 @@ export async function runAgent(params: {
       messages.push({
         role: 'tool',
         tool_call_id: call.id,
-        content: typeof toolOutput === 'string' ? toolOutput : JSON.stringify(toolOutput),
+        content: toolOutput,
       })
     }
+
+    // suppress unused variable warning
+    void finishReason
   }
 
   throw new Error('Agent iteration cap reached without final answer')
