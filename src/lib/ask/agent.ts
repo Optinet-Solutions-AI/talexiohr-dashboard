@@ -1,7 +1,7 @@
 import type OpenAI from 'openai'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { ChatCompletionMessageParam } from 'openai/resources/chat/completions'
-import { TOOL_DEFINITIONS, executeTool } from './tools'
+import { getAvailableToolDefinitions, executeTool } from './tools'
 import { buildSystemPrompt } from './systemPrompt'
 import type { AskResult, ToolCallRecord } from './types'
 
@@ -29,7 +29,7 @@ export async function runAgent(params: {
     const res = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
       messages,
-      tools: TOOL_DEFINITIONS,
+      tools: getAvailableToolDefinitions(),
       tool_choice: 'auto',
       temperature: 0.2,
     })

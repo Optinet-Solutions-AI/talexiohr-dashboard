@@ -14,6 +14,13 @@ export const TOOL_DEFINITIONS = [
   runReadonlySqlDefinition,
 ]
 
+export function getAvailableToolDefinitions() {
+  const hasReadonly = !!process.env.DATABASE_URL_READONLY
+  return hasReadonly
+    ? TOOL_DEFINITIONS
+    : TOOL_DEFINITIONS.filter(d => d.function.name !== 'run_readonly_sql')
+}
+
 export async function executeTool(
   name: string,
   argsJson: string,

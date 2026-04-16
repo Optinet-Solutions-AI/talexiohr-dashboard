@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest'
 
 vi.mock('../tools', () => ({
   TOOL_DEFINITIONS: [],
+  getAvailableToolDefinitions: () => [],
   executeTool: vi.fn(),
 }))
 
