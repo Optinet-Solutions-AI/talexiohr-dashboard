@@ -9,15 +9,17 @@ import {
   Wallet,
   Settings,
   ClipboardList,
+  ShieldCheck,
 } from 'lucide-react'
 
 const navItems = [
-  { label: 'Dashboard',  href: '/dashboard',            icon: LayoutDashboard },
-  { label: 'Attendance', href: '/dashboard/attendance', icon: ClipboardList   },
-  { label: 'Employees',  href: '/dashboard/employees',  icon: Users           },
-  { label: 'Leave',      href: '/dashboard/leave',      icon: CalendarDays    },
-  { label: 'Payroll',    href: '/dashboard/payroll',    icon: Wallet          },
-  { label: 'Settings',   href: '/dashboard/settings',   icon: Settings        },
+  { label: 'Dashboard',  href: '/dashboard',              icon: LayoutDashboard },
+  { label: 'Attendance', href: '/dashboard/attendance',   icon: ClipboardList   },
+  { label: 'Compliance', href: '/dashboard/compliance',   icon: ShieldCheck     },
+  { label: 'Employees',  href: '/dashboard/employees',    icon: Users           },
+  { label: 'Leave',      href: '/dashboard/leave',        icon: CalendarDays    },
+  { label: 'Payroll',    href: '/dashboard/payroll',      icon: Wallet          },
+  { label: 'Settings',   href: '/dashboard/settings',     icon: Settings        },
 ]
 
 export default function Sidebar() {
