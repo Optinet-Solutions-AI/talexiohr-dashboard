@@ -48,6 +48,7 @@ export async function runAgent(params: {
       tool_choice: 'auto',
       temperature: 0.2,
       stream: true,
+      stream_options: { include_usage: true },
     })
 
     let content = ''
