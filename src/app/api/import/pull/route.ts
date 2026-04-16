@@ -262,9 +262,26 @@ async function fallbackExport(token: string, dateFrom: string, dateTo: string) {
 
   const fileBuffer = await downloadExportFile(token, job.file.fileUrl)
   const wb = XLSX.read(fileBuffer, { type: 'array' })
-  const sheet = wb.Sheets[wb.SheetNames[0]]
+  const sheetNames = wb.SheetNames
+  const sheet = wb.Sheets[sheetNames[0]]
+
+  // Get raw CSV for debugging (first 10 lines)
+  const csvPreview = XLSX.utils.sheet_to_csv(sheet).split('\n').slice(0, 10)
+
+  // Try json parse
   const jsonRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet)
-  return { jsonRows, columnNames: jsonRows.length ? Object.keys(jsonRows[0]) : [] }
+  const columnNames = jsonRows.length ? Object.keys(jsonRows[0]) : []
+
+  // Also try with header row index 0 explicitly
+  const jsonRowsRaw = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: '' })
+
+  return {
+    jsonRows: jsonRowsRaw.length > jsonRows.length ? jsonRowsRaw : jsonRows,
+    columnNames: jsonRowsRaw.length > jsonRows.length && jsonRowsRaw.length > 0 ? Object.keys(jsonRowsRaw[0]) : columnNames,
+    sheetNames,
+    csvPreview,
+    fileSize: fileBuffer.byteLength,
+  }
 }
 
 // ── Main handler ─────────────────────────────────────────────────────────────
@@ -286,9 +303,10 @@ export async function POST(req: NextRequest) {
     } else {
       // Fallback to export
       try {
-        const { jsonRows, columnNames } = await fallbackExport(token, dateFrom, dateTo)
+        const exportResult = await fallbackExport(token, dateFrom, dateTo)
+        const { jsonRows, columnNames } = exportResult
         if (jsonRows.length === 0) {
-          results.clockings = { method: 'export', fetched: 0, saved: 0, message: direct.error || 'No data', debug: { columnNames } }
+          results.clockings = { method: 'export', fetched: 0, saved: 0, message: direct.error || 'No data', debug: { columnNames, sheetNames: exportResult.sheetNames, csvPreview: exportResult.csvPreview, fileSize: exportResult.fileSize } }
         } else {
           // Parse xlsx rows (same column mapping)
           const get = (r: Record<string, unknown>, keys: string[]) => { for (const k of keys) { if (r[k] != null && r[k] !== '') return String(r[k]).trim() } return null }
