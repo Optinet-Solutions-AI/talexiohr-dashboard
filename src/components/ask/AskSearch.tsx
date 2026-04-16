@@ -10,6 +10,9 @@ interface Answer {
   context: { dateRange: { from: string; to: string }; employeeCount: number; recordCount: number }
   timestamp: string
   saved: boolean
+  status?: string       // live status message while streaming; removed on done
+  streaming?: boolean   // true while events are still arriving
+  errored?: boolean     // true if the stream ended with an error event
 }
 
 function generateId() {
@@ -76,10 +79,31 @@ export default function AskSearch() {
     const q = (question ?? query).trim()
     if (!q) return
     if (q.length > 500) { alert('Question is too long (max 500 characters)'); return }
+
+    const cardId = generateId()
+    const nowIso = new Date().toISOString()
+
+    // Optimistically add an in-progress card at the top of the list
+    setAnswers(prev => [{
+      id: cardId,
+      question: q,
+      answer: '',
+      context: { dateRange: { from: '', to: '' }, employeeCount: 0, recordCount: 0 },
+      timestamp: nowIso,
+      saved: false,
+      status: 'Thinking...',
+      streaming: true,
+    }, ...prev])
+    if (!question) setQuery('')
     setLoading(true)
+
+    const updateCard = (patch: Partial<Answer>) => {
+      setAnswers(prev => prev.map(a => a.id === cardId ? { ...a, ...patch } : a))
+    }
+
     try {
       const controller = new AbortController()
-      const timeout = setTimeout(() => controller.abort(), 30000) // 30s timeout
+      const timeout = setTimeout(() => controller.abort(), 60_000) // 60s timeout for streamed answers
 
       const res = await fetch('/api/ask', {
         method: 'POST',
@@ -87,34 +111,55 @@ export default function AskSearch() {
         body: JSON.stringify({ question: q }),
         signal: controller.signal,
       })
-      clearTimeout(timeout)
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error)
 
-      const newAnswer: Answer = {
-        id: generateId(),
-        question: q,
-        answer: data.answer,
-        context: data.context,
-        timestamp: data.timestamp,
-        saved: false,
+      const contentType = res.headers.get('content-type') ?? ''
+
+      if (!contentType.includes('text/event-stream')) {
+        // JSON path: relevance refusal, rate limit, or other error
+        clearTimeout(timeout)
+        const data = await res.json()
+        if (!res.ok) throw new Error(data.error ?? 'Failed to get answer')
+        updateCard({
+          answer: data.answer,
+          context: data.context,
+          timestamp: data.timestamp,
+          status: undefined,
+          streaming: false,
+        })
+        return
       }
-      setAnswers(prev => [newAnswer, ...prev])
-      if (!question) setQuery('')
+
+      // SSE path
+      const { parseSseStream } = await import('@/lib/ask/client/parseSse')
+      for await (const event of parseSseStream(res)) {
+        if (event.type === 'status') {
+          updateCard({ status: event.message ?? 'Thinking...' })
+        } else if (event.type === 'token') {
+          setAnswers(prev => prev.map(a => a.id === cardId ? { ...a, answer: a.answer + event.delta } : a))
+        } else if (event.type === 'done') {
+          updateCard({
+            answer: event.payload.answer,
+            context: event.payload.context,
+            timestamp: event.payload.timestamp,
+            status: undefined,
+            streaming: false,
+          })
+        } else if (event.type === 'error') {
+          updateCard({
+            status: undefined,
+            streaming: false,
+            errored: true,
+            answer: (event.message ? `Error: ${event.message}` : 'Error while generating answer'),
+          })
+        }
+      }
+      clearTimeout(timeout)
     } catch (err) {
       const isTimeout = err instanceof DOMException && err.name === 'AbortError'
       const errMsg = isTimeout
-        ? 'The query took too long (over 30 seconds). Try a simpler question — for example, ask about a specific employee or a shorter date range instead of "all employees for the whole year".'
+        ? 'The query took too long (over 60 seconds). Try a simpler question — for example, ask about a specific employee or a shorter date range instead of "all employees for the whole year".'
         : `Error: ${err instanceof Error ? err.message : 'Failed to get answer'}`
-      const errAnswer: Answer = {
-        id: generateId(),
-        question: q,
-        answer: errMsg,
-        context: { dateRange: { from: '', to: '' }, employeeCount: 0, recordCount: 0 },
-        timestamp: new Date().toISOString(),
-        saved: false,
-      }
-      setAnswers(prev => [errAnswer, ...prev])
+      updateCard({ status: undefined, streaming: false, errored: true, answer: errMsg })
     } finally {
       setLoading(false)
     }
@@ -221,14 +266,6 @@ export default function AskSearch() {
         </div>
       )}
 
-      {/* Loading */}
-      {loading && (
-        <div className="bg-white rounded-lg border border-slate-200 p-6 text-center">
-          <Loader2 size={20} className="animate-spin text-indigo-500 mx-auto mb-2" />
-          <p className="text-xs text-slate-500">Analyzing your HR data...</p>
-        </div>
-      )}
-
       {/* Answers */}
       <div className="space-y-4">
         {displayed.map(a => (
@@ -241,10 +278,21 @@ export default function AskSearch() {
               </span>
             </div>
 
+            {a.streaming && a.status && (
+              <div className="px-4 py-1.5 border-b border-slate-100 bg-indigo-50/40 flex items-center gap-2">
+                <Loader2 size={12} className="animate-spin text-indigo-500" />
+                <span className="text-[11px] text-indigo-700">{a.status}</span>
+              </div>
+            )}
+
             {/* Answer */}
             <div className="px-4 py-3">
-              <div className="prose prose-sm prose-slate max-w-none text-xs leading-relaxed [&_strong]:text-slate-800 [&_li]:my-0.5 [&_p]:my-1 [&_table]:text-xs [&_th]:px-2 [&_th]:py-1 [&_td]:px-2 [&_td]:py-1 [&_th]:bg-slate-50 [&_th]:text-slate-600 [&_table]:border [&_th]:border [&_td]:border [&_table]:border-slate-200"
-                dangerouslySetInnerHTML={{ __html: markdownToHtml(a.answer) }} />
+              {a.answer ? (
+                <div className="prose prose-sm prose-slate max-w-none text-xs leading-relaxed [&_strong]:text-slate-800 [&_li]:my-0.5 [&_p]:my-1 [&_table]:text-xs [&_th]:px-2 [&_th]:py-1 [&_td]:px-2 [&_td]:py-1 [&_th]:bg-slate-50 [&_th]:text-slate-600 [&_table]:border [&_th]:border [&_td]:border [&_table]:border-slate-200"
+                  dangerouslySetInnerHTML={{ __html: markdownToHtml(a.answer) }} />
+              ) : (
+                a.streaming && <div className="text-xs text-slate-400">Waiting for the first token...</div>
+              )}
             </div>
 
             {/* Context + Actions */}
