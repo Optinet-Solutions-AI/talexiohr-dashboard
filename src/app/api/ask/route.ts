@@ -11,17 +11,15 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
 export async function POST(req: NextRequest) {
   const started = Date.now()
   const supabase = createAdminClient()
-  let userId: string
+  // TODO: re-enable the auth gate once login/signup are restored.
+  // While auth is disabled project-wide, fall back to anonymous and skip the
+  // per-user rate limit. Do NOT deploy to a public URL in this state.
+  let userId: string | null = null
   try {
     const authed = await createServerClient()
-    const { data: { user }, error } = await authed.auth.getUser()
-    if (error || !user) {
-      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
-    }
-    userId = user.id
-  } catch {
-    return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
-  }
+    const { data: { user } } = await authed.auth.getUser()
+    userId = user?.id ?? null
+  } catch { /* anonymous ok while auth is disabled */ }
 
   let question = ''
   try {
