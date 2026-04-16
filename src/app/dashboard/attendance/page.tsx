@@ -4,18 +4,13 @@ import StatCards from '@/components/attendance/StatCards'
 import AttendanceFilters from '@/components/attendance/AttendanceFilters'
 import StatusBadge from '@/components/attendance/StatusBadge'
 import CsvImport from '@/components/attendance/CsvImport'
-import { CalendarDays, Clock } from 'lucide-react'
+
+export const dynamic = 'force-dynamic'
 
 const PAGE_SIZE = 20
 
 interface PageProps {
-  searchParams: Promise<{
-    from?: string
-    to?: string
-    employee?: string
-    status?: string
-    page?: string
-  }>
+  searchParams: Promise<{ from?: string; to?: string; employee?: string; status?: string; page?: string }>
 }
 
 export default async function AttendancePage({ searchParams }: PageProps) {
@@ -30,44 +25,28 @@ export default async function AttendancePage({ searchParams }: PageProps) {
 
   const supabase = createAdminClient()
 
-  // Fetch employees for filter dropdown
-  const { data: employees } = await supabase
-    .from('employees')
-    .select('id, full_name')
-    .order('last_name')
+  const { data: employees } = await supabase.from('employees').select('id, full_name').order('last_name')
 
-  // Build attendance query
   let query = supabase
     .from('attendance_records')
-    .select(`
-      id, date, location_in, time_in, location_out, time_out,
-      hours_worked, status, comments,
-      employees!inner(id, first_name, last_name, full_name)
-    `, { count: 'exact' })
-    .gte('date', from)
-    .lte('date', to)
+    .select('id, date, location_in, time_in, location_out, time_out, hours_worked, status, comments, employees!inner(id, first_name, last_name, full_name)', { count: 'exact' })
+    .gte('date', from).lte('date', to)
     .order('date', { ascending: false })
     .order('employees(last_name)', { ascending: true })
     .range(offset, offset + PAGE_SIZE - 1)
-
   if (empId)  query = query.eq('employee_id', empId)
   if (status) query = query.eq('status', status)
 
   const { data: records, count } = await query
 
-  // Stats for the selected date range
   const { data: statsData } = await supabase
-    .from('attendance_records')
-    .select('status')
-    .gte('date', from)
-    .lte('date', to)
-    .then(r => r)
+    .from('attendance_records').select('status').gte('date', from).lte('date', to).then(r => r)
 
   const stats = {
     total:    employees?.length ?? 0,
-    office:   statsData?.filter(r => r.status === 'office').length   ?? 0,
-    wfh:      statsData?.filter(r => r.status === 'wfh').length      ?? 0,
-    remote:   statsData?.filter(r => r.status === 'remote').length   ?? 0,
+    office:   statsData?.filter(r => r.status === 'office').length ?? 0,
+    wfh:      statsData?.filter(r => r.status === 'wfh').length ?? 0,
+    remote:   statsData?.filter(r => r.status === 'remote').length ?? 0,
     absent:   statsData?.filter(r => r.status === 'no_clocking').length ?? 0,
     vacation: statsData?.filter(r => r.status === 'vacation').length ?? 0,
   }
@@ -75,135 +54,103 @@ export default async function AttendancePage({ searchParams }: PageProps) {
   const totalPages = Math.ceil((count ?? 0) / PAGE_SIZE)
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div className="space-y-5 max-w-7xl mx-auto">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Attendance</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Malta office daily attendance tracker</p>
+          <h1 className="text-xl font-bold text-slate-800">Attendance</h1>
+          <p className="text-xs text-slate-400 mt-0.5">Daily attendance records</p>
         </div>
         <CsvImport />
       </div>
 
-      {/* Stats */}
       <StatCards stats={stats} />
 
-      {/* Filters */}
-      <div className="bg-white rounded-xl border border-gray-200 p-4">
+      <div className="bg-white rounded-lg border border-slate-200 p-3">
         <AttendanceFilters employees={employees ?? []} />
       </div>
 
-      {/* Table */}
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-        <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
-          <p className="text-sm text-gray-500">
-            {count ?? 0} record{count !== 1 ? 's' : ''} · {from} → {to}
-          </p>
+      <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
+        <div className="px-4 py-2.5 border-b border-slate-100 flex items-center justify-between">
+          <p className="text-xs text-slate-400">{count ?? 0} records · {from === to ? from : `${from} → ${to}`}</p>
         </div>
 
         {!records || records.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center">
-            <CalendarDays className="text-gray-300 mb-3" size={40} />
-            <p className="text-gray-500 font-medium">No records found</p>
-            <p className="text-gray-400 text-sm mt-1">Import a CSV or adjust your filters</p>
+            <p className="text-slate-400 text-sm">No records found</p>
+            <p className="text-slate-300 text-xs mt-1">Import a CSV or adjust filters</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-gray-50 text-left">
-                  <th className="px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wider">Date</th>
-                  <th className="px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wider">Employee</th>
-                  <th className="px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wider">Status</th>
-                  <th className="px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wider">Location In</th>
-                  <th className="px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wider">Time In</th>
-                  <th className="px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wider">Time Out</th>
-                  <th className="px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wider">Hours</th>
-                  <th className="px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wider">Comments</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {records.map((r) => {
-                  const emp = Array.isArray(r.employees) ? r.employees[0] : r.employees
-                  return (
-                    <tr key={r.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-4 py-3 text-gray-700 whitespace-nowrap font-medium">
-                        {r.date}
-                      </td>
-                      <td className="px-4 py-3 text-gray-900 whitespace-nowrap">
-                        {emp?.full_name ?? '—'}
-                      </td>
-                      <td className="px-4 py-3">
-                        <StatusBadge status={r.status} />
-                      </td>
-                      <td className="px-4 py-3 text-gray-600 whitespace-nowrap">
-                        {r.location_in ?? '—'}
-                      </td>
-                      <td className="px-4 py-3 text-gray-600 whitespace-nowrap font-mono text-xs">
-                        {r.time_in ? r.time_in.slice(0, 5) : '—'}
-                      </td>
-                      <td className="px-4 py-3 text-gray-600 whitespace-nowrap font-mono text-xs">
-                        {r.time_out ? r.time_out.slice(0, 5) : '—'}
-                      </td>
-                      <td className="px-4 py-3 text-gray-600 whitespace-nowrap">
-                        {r.hours_worked != null
-                          ? `${Math.floor(r.hours_worked)}h ${Math.round((r.hours_worked % 1) * 60)}m`
-                          : '—'}
-                      </td>
-                      <td className="px-4 py-3 text-gray-400 text-xs max-w-xs truncate">
-                        {r.comments || '—'}
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
+          <>
+            {/* Desktop table */}
+            <div className="hidden sm:block overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="bg-slate-50 text-left">
+                    <th className="px-4 py-2.5 font-medium text-slate-400 text-[10px] uppercase tracking-wider">Date</th>
+                    <th className="px-4 py-2.5 font-medium text-slate-400 text-[10px] uppercase tracking-wider">Employee</th>
+                    <th className="px-4 py-2.5 font-medium text-slate-400 text-[10px] uppercase tracking-wider">Status</th>
+                    <th className="px-4 py-2.5 font-medium text-slate-400 text-[10px] uppercase tracking-wider">In</th>
+                    <th className="px-4 py-2.5 font-medium text-slate-400 text-[10px] uppercase tracking-wider">Out</th>
+                    <th className="px-4 py-2.5 font-medium text-slate-400 text-[10px] uppercase tracking-wider">Hours</th>
+                    <th className="px-4 py-2.5 font-medium text-slate-400 text-[10px] uppercase tracking-wider">Notes</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                  {records.map(r => {
+                    const emp = Array.isArray(r.employees) ? r.employees[0] : r.employees
+                    return (
+                      <tr key={r.id} className="hover:bg-slate-50/50 transition-colors">
+                        <td className="px-4 py-2.5 text-slate-600 whitespace-nowrap font-medium">{r.date}</td>
+                        <td className="px-4 py-2.5 text-slate-700 whitespace-nowrap">{emp?.full_name ?? '—'}</td>
+                        <td className="px-4 py-2.5"><StatusBadge status={r.status} /></td>
+                        <td className="px-4 py-2.5 text-slate-500 whitespace-nowrap font-mono">{r.time_in ? r.time_in.slice(0, 5) : '—'}</td>
+                        <td className="px-4 py-2.5 text-slate-500 whitespace-nowrap font-mono">{r.time_out ? r.time_out.slice(0, 5) : '—'}</td>
+                        <td className="px-4 py-2.5 text-slate-500 whitespace-nowrap">{r.hours_worked != null ? `${Math.floor(r.hours_worked)}h ${Math.round((r.hours_worked % 1) * 60)}m` : '—'}</td>
+                        <td className="px-4 py-2.5 text-slate-400 max-w-xs truncate">{r.comments || '—'}</td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile cards */}
+            <div className="sm:hidden divide-y divide-slate-100">
+              {records.map(r => {
+                const emp = Array.isArray(r.employees) ? r.employees[0] : r.employees
+                return (
+                  <div key={r.id} className="px-4 py-3 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-medium text-slate-700">{emp?.full_name ?? '—'}</span>
+                      <StatusBadge status={r.status} />
+                    </div>
+                    <div className="flex items-center gap-3 text-[11px] text-slate-400">
+                      <span>{r.date}</span>
+                      <span>{r.time_in ? r.time_in.slice(0, 5) : '—'} → {r.time_out ? r.time_out.slice(0, 5) : '—'}</span>
+                      <span>{r.hours_worked != null ? `${Math.floor(r.hours_worked)}h ${Math.round((r.hours_worked % 1) * 60)}m` : '—'}</span>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </>
         )}
 
-        {/* Pagination */}
         {totalPages > 1 && (() => {
           const baseHref = `?from=${from}&to=${to}${empId ? `&employee=${empId}` : ''}${status ? `&status=${status}` : ''}`
-          // Show up to 5 page numbers centered on current page
           const startPage = Math.max(1, page - 2)
           const endPage = Math.min(totalPages, startPage + 4)
           const pages = Array.from({ length: endPage - startPage + 1 }, (_, i) => startPage + i)
-
           return (
-            <div className="px-4 py-3 border-t border-gray-100 flex items-center justify-between text-sm text-gray-500">
-              <span>
-                {offset + 1}–{Math.min(offset + PAGE_SIZE, count ?? 0)} of {count} records
-              </span>
+            <div className="px-4 py-2.5 border-t border-slate-100 flex items-center justify-between text-xs text-slate-400">
+              <span>{offset + 1}–{Math.min(offset + PAGE_SIZE, count ?? 0)} of {count}</span>
               <div className="flex items-center gap-1">
-                {page > 1 && (
-                  <a
-                    href={`${baseHref}&page=${page - 1}`}
-                    className="px-2.5 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors text-xs"
-                  >
-                    Prev
-                  </a>
-                )}
+                {page > 1 && <a href={`${baseHref}&page=${page - 1}`} className="px-2 py-1 rounded border border-slate-200 hover:bg-slate-50 text-[11px]">Prev</a>}
                 {pages.map(p => (
-                  <a
-                    key={p}
-                    href={`${baseHref}&page=${p}`}
-                    className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                      p === page
-                        ? 'bg-blue-600 text-white border border-blue-600'
-                        : 'border border-gray-200 hover:bg-gray-50 text-gray-600'
-                    }`}
-                  >
-                    {p}
-                  </a>
+                  <a key={p} href={`${baseHref}&page=${p}`}
+                    className={`px-2 py-1 rounded text-[11px] font-medium ${p === page ? 'bg-slate-800 text-white border border-slate-800' : 'border border-slate-200 hover:bg-slate-50 text-slate-500'}`}>{p}</a>
                 ))}
-                {page < totalPages && (
-                  <a
-                    href={`${baseHref}&page=${page + 1}`}
-                    className="px-2.5 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors text-xs"
-                  >
-                    Next
-                  </a>
-                )}
+                {page < totalPages && <a href={`${baseHref}&page=${page + 1}`} className="px-2 py-1 rounded border border-slate-200 hover:bg-slate-50 text-[11px]">Next</a>}
               </div>
             </div>
           )

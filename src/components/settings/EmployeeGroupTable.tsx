@@ -19,7 +19,7 @@ interface Employee {
 
 export default function EmployeeGroupTable({ employees }: { employees: Employee[] }) {
   const [saving, setSaving] = useState<string | null>(null)
-  const [saved,  setSaved]  = useState<Set<string>>(new Set())
+  const [saved, setSaved] = useState<Set<string>>(new Set())
   const [groups, setGroups] = useState<Record<string, string>>(
     Object.fromEntries(employees.map(e => [e.id, e.group_type ?? 'unclassified']))
   )
@@ -28,62 +28,78 @@ export default function EmployeeGroupTable({ employees }: { employees: Employee[
     setGroups(g => ({ ...g, [id]: group_type }))
     setSaving(id)
     try {
-      await fetch('/api/employees/group', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, group_type }),
-      })
+      await fetch('/api/employees/group', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, group_type }) })
       setSaved(s => new Set([...s, id]))
       setTimeout(() => setSaved(s => { const n = new Set(s); n.delete(id); return n }), 2000)
-    } finally {
-      setSaving(null)
-    }
-  }
-
-  const GROUP_COLOR: Record<string, string> = {
-    office_malta: 'text-emerald-700 bg-emerald-50 border-emerald-200',
-    remote:       'text-blue-700 bg-blue-50 border-blue-200',
-    unclassified: 'text-gray-500 bg-gray-50 border-gray-200',
+    } finally { setSaving(null) }
   }
 
   return (
-    <table className="w-full text-sm">
-      <thead>
-        <tr className="bg-gray-50 text-left">
-          <th className="px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wider">Employee</th>
-          <th className="px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wider">Code</th>
-          <th className="px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wider">Unit</th>
-          <th className="px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wider w-48">Group</th>
-          <th className="px-4 py-3 w-8"></th>
-        </tr>
-      </thead>
-      <tbody className="divide-y divide-gray-100">
+    <>
+      {/* Desktop */}
+      <div className="hidden sm:block">
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="bg-slate-50 text-left">
+              <th className="px-4 py-2.5 font-medium text-slate-400 text-[10px] uppercase tracking-wider">Employee</th>
+              <th className="px-4 py-2.5 font-medium text-slate-400 text-[10px] uppercase tracking-wider">Code</th>
+              <th className="px-4 py-2.5 font-medium text-slate-400 text-[10px] uppercase tracking-wider">Unit</th>
+              <th className="px-4 py-2.5 font-medium text-slate-400 text-[10px] uppercase tracking-wider w-44">Group</th>
+              <th className="px-4 py-2.5 w-8"></th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-50">
+            {employees.map(emp => {
+              const current = groups[emp.id] ?? 'unclassified'
+              return (
+                <tr key={emp.id} className="hover:bg-slate-50/50 transition-colors">
+                  <td className="px-4 py-2.5 font-medium text-slate-700">{emp.full_name}</td>
+                  <td className="px-4 py-2.5 text-slate-400 font-mono text-[11px]">{emp.talexio_id ?? '—'}</td>
+                  <td className="px-4 py-2.5 text-slate-500">{emp.unit ?? '—'}</td>
+                  <td className="px-4 py-2.5">
+                    <select
+                      value={current}
+                      onChange={e => handleChange(emp.id, e.target.value)}
+                      className="w-full rounded-md border border-slate-200 px-2 py-1.5 text-xs text-slate-600 focus:outline-none focus:ring-1 focus:ring-slate-400 bg-white"
+                    >
+                      {GROUPS.map(g => <option key={g.value} value={g.value}>{g.label}</option>)}
+                    </select>
+                  </td>
+                  <td className="px-2 py-2.5 text-center w-8">
+                    {saving === emp.id && <Loader2 size={12} className="animate-spin text-slate-300 mx-auto" />}
+                    {saved.has(emp.id) && <Check size={12} className="text-slate-500 mx-auto" />}
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Mobile */}
+      <div className="sm:hidden divide-y divide-slate-100">
         {employees.map(emp => {
           const current = groups[emp.id] ?? 'unclassified'
           return (
-            <tr key={emp.id} className="hover:bg-gray-50 transition-colors">
-              <td className="px-4 py-2.5 font-medium text-gray-900">{emp.full_name}</td>
-              <td className="px-4 py-2.5 text-gray-400 font-mono text-xs">{emp.talexio_id ?? '—'}</td>
-              <td className="px-4 py-2.5 text-gray-500 text-xs">{emp.unit ?? '—'}</td>
-              <td className="px-4 py-2.5">
-                <select
-                  value={current}
-                  onChange={e => handleChange(emp.id, e.target.value)}
-                  className={`w-full rounded-lg border px-2.5 py-1.5 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 ${GROUP_COLOR[current]}`}
-                >
-                  {GROUPS.map(g => (
-                    <option key={g.value} value={g.value}>{g.label}</option>
-                  ))}
-                </select>
-              </td>
-              <td className="px-2 py-2.5 text-center w-8">
-                {saving === emp.id && <Loader2 size={13} className="animate-spin text-gray-400 mx-auto" />}
-                {saved.has(emp.id) && <Check size={13} className="text-emerald-500 mx-auto" />}
-              </td>
-            </tr>
+            <div key={emp.id} className="px-4 py-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-slate-700">{emp.full_name}</span>
+                <div className="flex items-center gap-1.5">
+                  {saving === emp.id && <Loader2 size={11} className="animate-spin text-slate-300" />}
+                  {saved.has(emp.id) && <Check size={11} className="text-slate-500" />}
+                </div>
+              </div>
+              <select
+                value={current}
+                onChange={e => handleChange(emp.id, e.target.value)}
+                className="w-full rounded-md border border-slate-200 px-2 py-1.5 text-xs text-slate-600 focus:outline-none focus:ring-1 focus:ring-slate-400 bg-white"
+              >
+                {GROUPS.map(g => <option key={g.value} value={g.value}>{g.label}</option>)}
+              </select>
+            </div>
           )
         })}
-      </tbody>
-    </table>
+      </div>
+    </>
   )
 }

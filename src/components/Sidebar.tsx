@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { useState } from 'react'
 import {
   LayoutDashboard,
   Users,
@@ -9,25 +10,24 @@ import {
   Settings,
   ClipboardList,
   ShieldCheck,
+  Menu,
+  X,
 } from 'lucide-react'
 
 const navItems = [
-  { label: 'Dashboard',  href: '/dashboard',              icon: LayoutDashboard },
-  { label: 'Attendance', href: '/dashboard/attendance',   icon: ClipboardList   },
-  { label: 'Compliance', href: '/dashboard/compliance',   icon: ShieldCheck     },
-  { label: 'Employees',  href: '/dashboard/employees',    icon: Users           },
-  { label: 'Leave',      href: '/dashboard/leave',        icon: CalendarDays    },
-  { label: 'Settings',   href: '/dashboard/settings',     icon: Settings        },
+  { label: 'Dashboard',  href: '/dashboard',            icon: LayoutDashboard },
+  { label: 'Attendance', href: '/dashboard/attendance',  icon: ClipboardList   },
+  { label: 'Compliance', href: '/dashboard/compliance',  icon: ShieldCheck     },
+  { label: 'Employees',  href: '/dashboard/employees',   icon: Users           },
+  { label: 'Leave',      href: '/dashboard/leave',       icon: CalendarDays    },
+  { label: 'Settings',   href: '/dashboard/settings',    icon: Settings        },
 ]
 
-export default function Sidebar() {
-  const pathname = usePathname()
-
+function NavContent({ pathname, onNavigate }: { pathname: string; onNavigate?: () => void }) {
   return (
-    <aside className="w-60 flex flex-col bg-white border-r border-gray-200 py-6 px-4">
+    <>
       <div className="mb-8 px-2">
-        <span className="text-lg font-bold text-gray-900">Talexio HR</span>
-        <p className="text-xs text-gray-400 mt-0.5">Dashboard</p>
+        <span className="text-base font-bold text-slate-800 tracking-tight">Talexio HR</span>
       </div>
 
       <nav className="flex flex-col gap-0.5 flex-1">
@@ -37,18 +37,57 @@ export default function Sidebar() {
             <Link
               key={href}
               href={href}
+              onClick={onNavigate}
               className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
                 active
-                  ? 'bg-blue-50 text-blue-700'
-                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                  ? 'bg-slate-100 text-slate-900'
+                  : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'
               }`}
             >
-              <Icon size={16} className={active ? 'text-blue-600' : 'text-gray-400'} />
+              <Icon size={16} className={active ? 'text-slate-700' : 'text-slate-400'} />
               {label}
             </Link>
           )
         })}
       </nav>
-    </aside>
+    </>
+  )
+}
+
+export default function Sidebar() {
+  const pathname = usePathname()
+  const [open, setOpen] = useState(false)
+
+  return (
+    <>
+      {/* Mobile top bar */}
+      <div className="lg:hidden fixed top-0 left-0 right-0 z-40 h-14 bg-white border-b border-slate-200 flex items-center px-4">
+        <button onClick={() => setOpen(true)} className="p-1.5 -ml-1.5 text-slate-600">
+          <Menu size={20} />
+        </button>
+        <span className="ml-3 text-sm font-bold text-slate-800 tracking-tight">Talexio HR</span>
+      </div>
+
+      {/* Mobile drawer overlay */}
+      {open && (
+        <div className="lg:hidden fixed inset-0 z-50">
+          <div className="absolute inset-0 bg-black/20" onClick={() => setOpen(false)} />
+          <aside className="relative w-64 h-full bg-white border-r border-slate-200 py-6 px-4 flex flex-col">
+            <button
+              onClick={() => setOpen(false)}
+              className="absolute top-4 right-4 p-1.5 text-slate-400 hover:text-slate-600"
+            >
+              <X size={18} />
+            </button>
+            <NavContent pathname={pathname} onNavigate={() => setOpen(false)} />
+          </aside>
+        </div>
+      )}
+
+      {/* Desktop sidebar */}
+      <aside className="hidden lg:flex w-56 flex-col bg-white border-r border-slate-200 py-6 px-4 shrink-0">
+        <NavContent pathname={pathname} />
+      </aside>
+    </>
   )
 }

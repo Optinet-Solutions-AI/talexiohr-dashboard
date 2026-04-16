@@ -2,9 +2,10 @@ import Sidebar from '@/components/Sidebar'
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex h-screen bg-gray-100">
+    <div className="flex h-screen bg-slate-50">
       <Sidebar />
-      <main className="flex-1 overflow-y-auto p-8">{children}</main>
+      {/* pt-14 on mobile for the fixed top bar, lg:pt-0 on desktop */}
+      <main className="flex-1 overflow-y-auto px-4 py-6 pt-20 lg:pt-6 lg:px-8">{children}</main>
     </div>
   )
 }
