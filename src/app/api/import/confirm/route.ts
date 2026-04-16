@@ -104,15 +104,17 @@ export async function POST(req: NextRequest) {
         const latest = validOuts.length ? Math.max(...validOuts) : null
         const timeIn = earliest != null ? String(Math.floor(earliest/60)).padStart(2,'0') + ':' + String(earliest%60).padStart(2,'0') + ':00' : null
         const timeOut = latest != null ? String(Math.floor(latest/60)).padStart(2,'0') + ':' + String(latest%60).padStart(2,'0') + ':00' : null
-        const hoursWorked = sessions.reduce((s, r) => s + (r.hours > 0 ? r.hours : 0), 0) || null
+        // Broken/active clockings: null out hours and times for accurate averages
+        const isBrokenDay = status === 'broken' || status === 'active'
+        const hoursWorked = isBrokenDay ? null : (sessions.reduce((s, r) => s + (r.hours > 0 ? r.hours : 0), 0) || null)
         const first = sessions[0]
 
         await supabase.from('attendance_records').upsert({
           employee_id: empId, date,
-          location_in: first.locationIn, lat_in: first.latIn, lng_in: first.lngIn, time_in: timeIn,
-          location_out: first.locationOut, lat_out: first.latOut, lng_out: first.lngOut, time_out: timeOut,
+          location_in: first.locationIn, lat_in: first.latIn, lng_in: first.lngIn, time_in: isBrokenDay ? null : timeIn,
+          location_out: first.locationOut, lat_out: first.latOut, lng_out: first.lngOut, time_out: isBrokenDay ? null : timeOut,
           hours_worked: hoursWorked ? Math.round(hoursWorked * 100) / 100 : null,
-          status, comments: null, raw_data: sessions, updated_at: new Date().toISOString(),
+          status, comments: isBrokenDay ? 'Broken/active clocking — excluded from hours' : null, raw_data: sessions, updated_at: new Date().toISOString(),
         }, { onConflict: 'employee_id,date' })
         saved++
       }

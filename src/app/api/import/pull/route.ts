@@ -198,12 +198,15 @@ async function saveClockings(logs: TimeLog[], dateFrom: string) {
     else if (hasActive) status = 'active'
     else if (allBroken) status = 'broken'
 
+    // Broken/active: null out hours and times for accurate averages
+    const isBrokenDay = status === 'broken' || status === 'active'
+
     const ins = sessions.filter(s => s.from).map(s => new Date(s.from!).getTime())
     const outs = sessions.filter(s => s.to).map(s => new Date(s.to!).getTime())
-    const timeIn = ins.length ? new Date(Math.min(...ins)).toISOString().slice(11, 19) : null
-    const timeOut = outs.length ? new Date(Math.max(...outs)).toISOString().slice(11, 19) : null
+    const timeIn = isBrokenDay ? null : (ins.length ? new Date(Math.min(...ins)).toISOString().slice(11, 19) : null)
+    const timeOut = isBrokenDay ? null : (outs.length ? new Date(Math.max(...outs)).toISOString().slice(11, 19) : null)
     let hours: number | null = null
-    if (ins.length && outs.length) hours = Math.round(((Math.max(...outs) - Math.min(...ins)) / 3_600_000) * 100) / 100
+    if (!isBrokenDay && ins.length && outs.length) hours = Math.round(((Math.max(...outs) - Math.min(...ins)) / 3_600_000) * 100) / 100
 
     await supabase.from('attendance_records').upsert({
       employee_id: empRow.id, date: agg.date,

@@ -51,24 +51,27 @@ async function gatherContext(question: string) {
   context.dateRange = { from: dateFrom, to: dateTo }
 
   // Per-employee attendance summary
-  const empStats = new Map<string, { name: string; office: number; wfh: number; remote: number; leave: number; sick: number; noClocking: number; totalHours: number; daysWorked: number }>()
+  const empStats = new Map<string, { name: string; office: number; wfh: number; remote: number; leave: number; sick: number; noClocking: number; broken: number; totalHours: number; daysWorked: number }>()
   for (const emp of emps) {
-    empStats.set(emp.id, { name: emp.full_name, office: 0, wfh: 0, remote: 0, leave: 0, sick: 0, noClocking: 0, totalHours: 0, daysWorked: 0 })
+    empStats.set(emp.id, { name: emp.full_name, office: 0, wfh: 0, remote: 0, leave: 0, sick: 0, noClocking: 0, broken: 0, totalHours: 0, daysWorked: 0 })
   }
 
   for (const r of recs) {
     const s = empStats.get(r.employee_id)
     if (!s) continue
-    if (r.status === 'office') { s.office++; s.daysWorked++ }
-    else if (r.status === 'wfh') { s.wfh++; s.daysWorked++ }
-    else if (r.status === 'remote') { s.remote++; s.daysWorked++ }
+    // Broken/active clockings: count them but exclude from daysWorked and hours
+    if (r.status === 'broken' || r.status === 'active') {
+      s.broken++
+    } else if (r.status === 'office') { s.office++; s.daysWorked++; if (r.hours_worked) s.totalHours += r.hours_worked }
+    else if (r.status === 'wfh') { s.wfh++; s.daysWorked++; if (r.hours_worked) s.totalHours += r.hours_worked }
+    else if (r.status === 'remote') { s.remote++; s.daysWorked++; if (r.hours_worked) s.totalHours += r.hours_worked }
     else if (r.status === 'vacation') s.leave++
     else if (r.status === 'sick') s.sick++
     else if (r.status === 'no_clocking') s.noClocking++
-    else s.daysWorked++
-    if (r.hours_worked) s.totalHours += r.hours_worked
+    else { s.daysWorked++; if (r.hours_worked) s.totalHours += r.hours_worked }
   }
 
+  // daysWorked only counts days with valid clockings (not broken/active/leave/sick/no_clocking)
   context.employeeAttendance = [...empStats.values()].map(s => ({
     ...s,
     totalHours: Math.round(s.totalHours * 100) / 100,
@@ -157,6 +160,12 @@ STRICT RULES:
 COMPANY CONTEXT:
 - Two employee groups: Malta Office (must attend 4 days/week, max 1 WFH Monday and 1 WFH Friday per month) and Remote (evaluated on hours only).
 - "Best employee" = highest office attendance + most hours worked, unless user specifies differently.
+
+DATA RULES:
+- A "workday" is defined by the date the employee STARTED the timer (clock-in date).
+- Broken clockings (timer not properly finished) are EXCLUDED from hours and average calculations. They are counted separately.
+- daysWorked only includes days with valid, completed clockings (office, wfh, remote). It excludes broken, active, leave, sick, and no_clocking days.
+- avgHoursPerDay = totalHours / daysWorked (only valid completed days).
 
 DATA LIMITATIONS:
 - Data covers a limited date range (shown in context). If the user asks about dates outside this range, say so.
