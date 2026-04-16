@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { triggerExport, pollBackgroundJob, downloadExportFile } from '@/lib/talexio/session'
-import * as XLSX from 'xlsx'
 
 const DOMAIN = 'roosterpartners.talexiohr.com'
 const GQL_URL = 'https://api.talexiohr.com/graphql'
@@ -97,12 +95,14 @@ async function fetchLeave(token: string, dateFrom: string, dateTo: string): Prom
       employees(params: $params) {
         id fullName
         leave {
-          id
-          dateFrom
-          dateTo
-          leaveType { name }
-          status
-          hours
+          ... on EmployeeLeave {
+            id
+            dateFrom
+            dateTo
+            leaveType { name }
+            status
+            hours
+          }
         }
       }
     }`,
@@ -252,38 +252,6 @@ async function saveLeave(entries: LeaveEntry[]) {
   return { saved, updated }
 }
 
-// ── Export fallback (xlsx) ───────────────────────────────────────────────────
-function toMin(t: string | null) { if (!t) return null; const [h, m] = t.split(':').map(Number); return h * 60 + m }
-
-async function fallbackExport(token: string, dateFrom: string, dateTo: string) {
-  const jobId = await triggerExport(token, dateFrom, dateTo)
-  const job = await pollBackgroundJob(token, jobId)
-  if (!job.file?.fileUrl) throw new Error('Export completed but no file generated')
-
-  const fileBuffer = await downloadExportFile(token, job.file.fileUrl)
-  const wb = XLSX.read(fileBuffer, { type: 'array' })
-  const sheetNames = wb.SheetNames
-  const sheet = wb.Sheets[sheetNames[0]]
-
-  // Get raw CSV for debugging (first 10 lines)
-  const csvPreview = XLSX.utils.sheet_to_csv(sheet).split('\n').slice(0, 10)
-
-  // Try json parse
-  const jsonRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet)
-  const columnNames = jsonRows.length ? Object.keys(jsonRows[0]) : []
-
-  // Also try with header row index 0 explicitly
-  const jsonRowsRaw = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: '' })
-
-  return {
-    jsonRows: jsonRowsRaw.length > jsonRows.length ? jsonRowsRaw : jsonRows,
-    columnNames: jsonRowsRaw.length > jsonRows.length && jsonRowsRaw.length > 0 ? Object.keys(jsonRowsRaw[0]) : columnNames,
-    sheetNames,
-    csvPreview,
-    fileSize: fileBuffer.byteLength,
-  }
-}
-
 // ── Main handler ─────────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
   try {
@@ -294,79 +262,16 @@ export async function POST(req: NextRequest) {
     const supabase = createAdminClient()
     const results: Record<string, unknown> = { dateRange: { from: dateFrom, to: dateTo } }
 
-    // ── 1. Fetch clockings ──────────────────────────────────────────────────
+    // ── 1. Fetch clockings (direct GraphQL query) ─────────────────────────
     const direct = await fetchTimeLogs(token, dateFrom, dateTo)
 
     if (direct.logs.length > 0) {
       const clockResult = await saveClockings(direct.logs, dateFrom)
       results.clockings = { method: 'direct', fetched: direct.logs.length, saved: clockResult.saved, employees: clockResult.employees }
     } else {
-      // Fallback to export
-      try {
-        const exportResult = await fallbackExport(token, dateFrom, dateTo)
-        const { jsonRows, columnNames } = exportResult
-        if (jsonRows.length === 0) {
-          results.clockings = { method: 'export', fetched: 0, saved: 0, message: direct.error || 'No data', debug: { columnNames, sheetNames: exportResult.sheetNames, csvPreview: exportResult.csvPreview, fileSize: exportResult.fileSize } }
-        } else {
-          // Parse xlsx rows (same column mapping)
-          const get = (r: Record<string, unknown>, keys: string[]) => { for (const k of keys) { if (r[k] != null && r[k] !== '') return String(r[k]).trim() } return null }
-          const getNum = (r: Record<string, unknown>, keys: string[]) => { const v = get(r, keys); return v ? parseFloat(v) || null : null }
-
-          const rows = jsonRows.map(r => {
-            const code = get(r, ['Employee Code', 'EmployeeCode', 'Code'])
-            const date = get(r, ['Date', 'date'])
-            if (!code || !date || !/^\d{4}-\d{2}-\d{2}/.test(date)) return null
-            const tout = get(r, ['Time Out', 'TimeOut', 'Time out'])
-            return {
-              code, firstName: get(r, ['First Name', 'FirstName']) || '', lastName: get(r, ['Last Name', 'LastName']) || '',
-              unit: get(r, ['Unit', 'Department']) || '', date: date.slice(0, 10),
-              locationIn: get(r, ['Location In', 'LocationIn']) || null, latIn: getNum(r, ['Location In Latitude', 'Lat In']), lngIn: getNum(r, ['Location In Longitude', 'Lng In']),
-              locationOut: get(r, ['Location Out', 'LocationOut']) || null, latOut: getNum(r, ['Location Out Latitude', 'Lat Out']), lngOut: getNum(r, ['Location Out Longitude', 'Lng Out']),
-              timeIn: (() => { const v = get(r, ['Time In', 'TimeIn']); return v && /^\d{1,2}:\d{2}/.test(v) ? v.slice(0, 5) + ':00' : null })(),
-              timeOut: tout && /^\d{1,2}:\d{2}/.test(tout) ? tout.slice(0, 5) + ':00' : null,
-              hours: getNum(r, ['Hours', 'Total Hours']) || 0,
-              isBroken: tout === 'Broken Clocking', isActive: tout === 'Active Clocking',
-            }
-          }).filter(Boolean) as { code: string; firstName: string; lastName: string; unit: string; date: string; locationIn: string | null; latIn: number | null; lngIn: number | null; locationOut: string | null; latOut: number | null; lngOut: number | null; timeIn: string | null; timeOut: string | null; hours: number; isBroken: boolean; isActive: boolean }[]
-
-          // Upsert + aggregate + save (same as CSV import)
-          const empMap = new Map<string, { firstName: string; lastName: string }>()
-          for (const r of rows) { if (!empMap.has(r.code)) empMap.set(r.code, { firstName: r.firstName, lastName: r.lastName }) }
-          const dbEmpMap = new Map<string, string>()
-          for (const [code, emp] of empMap) {
-            const { data } = await supabase.from('employees').upsert({ talexio_id: code, first_name: emp.firstName, last_name: emp.lastName }, { onConflict: 'talexio_id' }).select('id').single()
-            if (data) dbEmpMap.set(code, data.id)
-          }
-
-          const grouped = new Map<string, typeof rows>()
-          for (const r of rows) { const k = `${r.code}::${r.date}`; if (!grouped.has(k)) grouped.set(k, []); grouped.get(k)!.push(r) }
-
-          let saved = 0
-          for (const [key, sessions] of grouped) {
-            const [code, date] = key.split('::')
-            const empId = dbEmpMap.get(code)
-            if (!empId) continue
-            const hasOffice = sessions.some(s => isOfficeName(s.locationIn) || isOfficeGps(s.latIn, s.lngIn))
-            const allBroken = sessions.every(s => s.isBroken || s.isActive)
-            let status = 'remote'; if (hasOffice) status = 'office'; else if (allBroken) status = 'broken'
-            const validIns = sessions.filter(s => s.timeIn).map(s => toMin(s.timeIn)).filter(Boolean) as number[]
-            const validOuts = sessions.filter(s => s.timeOut).map(s => toMin(s.timeOut)).filter(Boolean) as number[]
-            const earliest = validIns.length ? Math.min(...validIns) : null; const latest = validOuts.length ? Math.max(...validOuts) : null
-            const timeIn = earliest != null ? String(Math.floor(earliest / 60)).padStart(2, '0') + ':' + String(earliest % 60).padStart(2, '0') + ':00' : null
-            const timeOut = latest != null ? String(Math.floor(latest / 60)).padStart(2, '0') + ':' + String(latest % 60).padStart(2, '0') + ':00' : null
-            const hoursWorked = sessions.reduce((s, r) => s + (r.hours > 0 ? r.hours : 0), 0) || null
-            const first = sessions[0]
-            await supabase.from('attendance_records').upsert({
-              employee_id: empId, date, location_in: first.locationIn, lat_in: first.latIn, lng_in: first.lngIn, time_in: timeIn,
-              location_out: first.locationOut, lat_out: first.latOut, lng_out: first.lngOut, time_out: timeOut,
-              hours_worked: hoursWorked ? Math.round(hoursWorked * 100) / 100 : null, status, raw_data: sessions, updated_at: new Date().toISOString(),
-            }, { onConflict: 'employee_id,date' })
-            saved++
-          }
-          results.clockings = { method: 'export', fetched: rows.length, saved, employees: dbEmpMap.size, debug: { columnNames } }
-        }
-      } catch (err) {
-        results.clockings = { method: 'export', error: err instanceof Error ? err.message : 'Export failed', directError: direct.error }
+      results.clockings = {
+        method: 'direct', fetched: 0, saved: 0,
+        error: direct.error || 'pagedTimeLogs returned no data — the API may require payroll context. Use CSV upload instead.',
       }
     }
 
