@@ -75,8 +75,13 @@ export async function POST(req: NextRequest) {
     async start(controller) {
       const encoder = new TextEncoder()
       const send = (event: string, data: unknown) => {
-        const line = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`
-        controller.enqueue(encoder.encode(line))
+        try {
+          const line = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`
+          controller.enqueue(encoder.encode(line))
+        } catch {
+          // Controller is already closed (client disconnected or finally-close
+          // already ran). Drop the event silently — nothing is listening.
+        }
       }
 
       try {
