@@ -6,7 +6,7 @@ vi.mock('../tools', () => ({
   executeTool: vi.fn(),
 }))
 
-import { runAgent, MAX_ITERATIONS, MAX_TOOL_RESULT_BYTES, type AgentEvent } from '../agent'
+import { runAgent, MAX_ITERATIONS, MAX_TOKENS_PER_REQUEST, MAX_TOOL_RESULT_BYTES, type AgentEvent } from '../agent'
 import { executeTool } from '../tools'
 
 type FakeChunk = {
@@ -178,5 +178,14 @@ describe('runAgent (streaming-based)', () => {
     expect(assembled).not.toContain('Let me check')
     // Must contain the final answer from the second iteration
     expect(assembled).toBe('Final answer')
+  })
+
+  it('throws when the token budget is exceeded', async () => {
+    const openai = makeOpenAI([contentStream('over budget', MAX_TOKENS_PER_REQUEST + 1)])
+    await expect(runAgent({
+      question: 'q',
+      openai: openai as never,
+      supabase: {} as never,
+    })).rejects.toThrow(/token budget/i)
   })
 })

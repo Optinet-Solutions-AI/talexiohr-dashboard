@@ -53,8 +53,6 @@ export async function runAgent(params: {
     let content = ''
     const deltaBuffer: string[] = []
     const accToolCalls = new Map<number, AccumulatedToolCall>()
-    let finishReason: string | null | undefined = null
-
     for await (const chunk of response as AsyncIterable<unknown>) {
       const c = chunk as {
         choices?: Array<{
@@ -76,7 +74,6 @@ export async function runAgent(params: {
       const delta = choice?.delta
       if (!delta) {
         if (c.usage) totalTokens += c.usage.total_tokens
-        if (choice?.finish_reason) finishReason = choice.finish_reason
         continue
       }
 
@@ -101,8 +98,11 @@ export async function runAgent(params: {
         }
       }
 
-      if (choice?.finish_reason) finishReason = choice.finish_reason
       if (c.usage) totalTokens += c.usage.total_tokens
+    }
+
+    if (totalTokens > MAX_TOKENS_PER_REQUEST) {
+      throw new Error('Token budget exceeded')
     }
 
     // If this iteration has no tool calls, it produced the final answer — emit
@@ -111,10 +111,6 @@ export async function runAgent(params: {
       for (const piece of deltaBuffer) {
         onEvent?.({ type: 'token', delta: piece })
       }
-    }
-
-    if (totalTokens > MAX_TOKENS_PER_REQUEST) {
-      throw new Error('Token budget exceeded')
     }
 
     // If no tool calls, this is the final iteration
@@ -178,8 +174,6 @@ export async function runAgent(params: {
       })
     }
 
-    // suppress unused variable warning
-    void finishReason
   }
 
   throw new Error('Agent iteration cap reached without final answer')
