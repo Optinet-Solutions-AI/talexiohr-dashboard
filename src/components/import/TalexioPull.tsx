@@ -31,14 +31,7 @@ export default function TalexioPull() {
 
       setProgress('')
       setStep('idle')
-      const lines = [
-        `Export endpoint: ${data.exportOk ? 'OK' : 'FAILED'}`,
-        `Job ID: ${data.jobId}`,
-        `Job status: ${data.jobStatus || 'unknown'}`,
-        `Token expires: ${data.tokenExpiry || 'unknown'}`,
-      ]
-      if (data.jobErrors?.length) lines.push(`Errors: ${data.jobErrors.map((e: { message: string }) => e.message).join(', ')}`)
-      alert(lines.join('\n'))
+      alert(JSON.stringify(data, null, 2))
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Test failed')
       setStep('error')
