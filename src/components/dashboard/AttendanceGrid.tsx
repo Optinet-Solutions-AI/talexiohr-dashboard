@@ -1,15 +1,17 @@
 'use client'
 
-const STATUS_STYLE: Record<string, { bg: string; text: string; label: string }> = {
-  office:      { bg: 'bg-indigo-600', text: 'text-white',       label: 'Office' },
-  wfh:         { bg: 'bg-indigo-100', text: 'text-indigo-700',  label: 'WFH'    },
-  remote:      { bg: 'bg-indigo-50',  text: 'text-indigo-500',  label: 'Remote' },
-  vacation:    { bg: 'bg-violet-50',  text: 'text-violet-600',   label: 'Leave'  },
-  sick:        { bg: 'bg-red-50',     text: 'text-red-600',     label: 'Sick'   },
-  no_clocking: { bg: 'bg-slate-100',  text: 'text-slate-500',   label: '—'      },
-  unknown:     { bg: 'bg-slate-50',   text: 'text-slate-500',   label: '·'      },
-  active:      { bg: 'bg-indigo-100', text: 'text-indigo-600',  label: 'Active' },
-  broken:      { bg: 'bg-amber-50',   text: 'text-amber-600',   label: 'Broken' },
+import { useState } from 'react'
+
+const STATUS_CONFIG: Record<string, { color: string; label: string }> = {
+  office:      { color: 'bg-indigo-600',  label: 'Office' },
+  wfh:         { color: 'bg-indigo-300',  label: 'WFH' },
+  remote:      { color: 'bg-indigo-200',  label: 'Remote' },
+  vacation:    { color: 'bg-violet-300',  label: 'Leave' },
+  sick:        { color: 'bg-red-300',     label: 'Sick' },
+  no_clocking: { color: 'bg-slate-200',   label: 'No Clocking' },
+  unknown:     { color: 'bg-slate-100',   label: 'Unknown' },
+  active:      { color: 'bg-indigo-300',  label: 'Active' },
+  broken:      { color: 'bg-amber-300',   label: 'Broken' },
 }
 
 export interface GridEmployee {
@@ -18,43 +20,110 @@ export interface GridEmployee {
 }
 
 export default function AttendanceGrid({ employees, dates }: { employees: GridEmployee[]; dates: string[] }) {
+  const [tooltip, setTooltip] = useState<{ name: string; date: string; status: string; x: number; y: number } | null>(null)
+
+  // Group dates by week for header
+  const weeks = new Map<string, string[]>()
+  for (const d of dates) {
+    const dt = new Date(d + 'T00:00:00')
+    const weekStart = new Date(dt)
+    const day = weekStart.getDay()
+    weekStart.setDate(weekStart.getDate() - (day === 0 ? 6 : day - 1)) // Monday
+    const weekKey = weekStart.toISOString().slice(0, 10)
+    if (!weeks.has(weekKey)) weeks.set(weekKey, [])
+    weeks.get(weekKey)!.push(d)
+  }
+
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-xs">
-        <thead>
-          <tr>
-            <th className="text-left px-3 py-2 text-[10px] font-medium text-slate-600 uppercase tracking-wider w-36 sticky left-0 bg-white z-10">Employee</th>
-            {dates.map(d => {
-              const dt = new Date(d + 'T00:00:00')
-              return (
-                <th key={d} className="px-1.5 py-2 text-center text-[10px] font-medium text-slate-600 uppercase tracking-wider min-w-[60px]">
-                  <span className="block">{dt.toLocaleDateString('en-GB', { weekday: 'short' })}</span>
-                  <span className="block text-slate-500 font-normal">{dt.getDate()}</span>
-                </th>
-              )
-            })}
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-slate-50">
-          {employees.map(emp => (
-            <tr key={emp.name} className="hover:bg-slate-50/50 transition-colors">
-              <td className="px-3 py-2 font-medium text-slate-700 whitespace-nowrap text-xs sticky left-0 bg-white z-10">{emp.name}</td>
-              {dates.map(date => {
-                const day = emp.days.find(d => d.date === date)
-                const s = day?.status ?? 'unknown'
-                const style = STATUS_STYLE[s] ?? STATUS_STYLE.unknown
+    <div className="relative">
+      <div className="overflow-x-auto">
+        <table className="w-full border-collapse">
+          <thead>
+            {/* Week header row */}
+            <tr>
+              <th className="sticky left-0 z-20 bg-white" rowSpan={2}></th>
+              {[...weeks.entries()].map(([weekKey, weekDates]) => {
+                const ws = new Date(weekKey + 'T00:00:00')
                 return (
-                  <td key={date} className="px-1.5 py-1.5 text-center">
-                    <span className={`inline-flex items-center justify-center rounded px-1.5 py-0.5 text-[10px] font-medium ${style.bg} ${style.text}`}>
-                      {style.label}
-                    </span>
-                  </td>
+                  <th key={weekKey} colSpan={weekDates.length} className="text-center text-[9px] font-medium text-slate-500 pb-0 pt-2 px-0">
+                    Wk {ws.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+                  </th>
                 )
               })}
             </tr>
-          ))}
-        </tbody>
-      </table>
+            {/* Day header row */}
+            <tr>
+              {dates.map(d => {
+                const dt = new Date(d + 'T00:00:00')
+                const isWeekend = dt.getDay() === 0 || dt.getDay() === 6
+                return (
+                  <th key={d} className={`px-0 py-1 text-center min-w-[24px] w-[24px] ${isWeekend ? 'opacity-40' : ''}`}>
+                    <span className="block text-[9px] font-medium text-slate-500 leading-tight">
+                      {dt.toLocaleDateString('en-GB', { weekday: 'narrow' })}
+                    </span>
+                    <span className="block text-[9px] text-slate-500 leading-tight">
+                      {dt.getDate()}
+                    </span>
+                  </th>
+                )
+              })}
+            </tr>
+          </thead>
+          <tbody>
+            {employees.map(emp => (
+              <tr key={emp.name} className="group">
+                <td className="sticky left-0 z-10 bg-white px-3 py-1 text-xs font-medium text-slate-700 whitespace-nowrap max-w-[140px] truncate group-hover:bg-slate-50">
+                  {emp.name}
+                </td>
+                {dates.map(date => {
+                  const day = emp.days.find(d => d.date === date)
+                  const s = day?.status ?? 'unknown'
+                  const config = STATUS_CONFIG[s] ?? STATUS_CONFIG.unknown
+                  const dt = new Date(date + 'T00:00:00')
+                  const isWeekend = dt.getDay() === 0 || dt.getDay() === 6
+
+                  return (
+                    <td key={date} className={`px-0 py-1 text-center ${isWeekend ? 'opacity-40' : ''}`}>
+                      <div
+                        className={`w-[18px] h-[18px] rounded-[4px] mx-auto cursor-default ${config.color} transition-transform hover:scale-125`}
+                        onMouseEnter={e => {
+                          const rect = (e.target as HTMLElement).getBoundingClientRect()
+                          setTooltip({ name: emp.name, date, status: config.label, x: rect.left + rect.width / 2, y: rect.top - 8 })
+                        }}
+                        onMouseLeave={() => setTooltip(null)}
+                      />
+                    </td>
+                  )
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Legend */}
+      <div className="flex flex-wrap items-center gap-3 px-4 py-2.5 border-t border-slate-100">
+        {Object.entries(STATUS_CONFIG).filter(([k]) => !['unknown', 'active', 'broken'].includes(k)).map(([key, { color, label }]) => (
+          <div key={key} className="flex items-center gap-1.5">
+            <div className={`w-3 h-3 rounded-[3px] ${color}`} />
+            <span className="text-[10px] text-slate-600">{label}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* Tooltip */}
+      {tooltip && (
+        <div
+          className="fixed z-50 pointer-events-none px-2.5 py-1.5 rounded-md bg-slate-800 text-white text-[11px] shadow-lg whitespace-nowrap -translate-x-1/2 -translate-y-full"
+          style={{ left: tooltip.x, top: tooltip.y }}
+        >
+          <span className="font-medium">{tooltip.name}</span>
+          <span className="text-slate-300 mx-1">·</span>
+          <span className="text-slate-300">{new Date(tooltip.date + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}</span>
+          <span className="text-slate-300 mx-1">·</span>
+          <span>{tooltip.status}</span>
+        </div>
+      )}
     </div>
   )
 }
