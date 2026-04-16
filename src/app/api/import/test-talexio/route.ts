@@ -11,7 +11,27 @@ export async function GET(req: NextRequest) {
   if (!token) return NextResponse.json({ error: 'Token is required' }, { status: 400 })
 
   try {
-    const res = await fetch('https://api.talexiohr.com/graphql', {
+    // Test 1: Try the exportInsightsChart REST endpoint (same as browser)
+    const exportRes = await fetch('https://api.talexiohr.com/exportInsightsChart', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'authorization': `Bearer ${token}`,
+        'client-domain': DOMAIN,
+      },
+      body: JSON.stringify({
+        dateFrom: date,
+        dateTo: date,
+        chartType: 'WEEKLY_SHIFT_OVERVIEW',
+      }),
+      cache: 'no-store',
+    })
+
+    const exportJson = await exportRes.json()
+    const jobId = typeof exportJson === 'number' ? exportJson : exportJson?.id ?? exportJson
+
+    // Test 2: Check the background job status
+    const jobRes = await fetch('https://api.talexiohr.com/graphql', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -21,35 +41,30 @@ export async function GET(req: NextRequest) {
         'apollographql-client-version': '1.0',
       },
       body: JSON.stringify({
-        operationName: 'TestTimeLogs',
-        query: `query TestTimeLogs($params: TimeLogsFilterParams!, $pageNumber: Int!, $pageSize: Int!) {
-          pagedTimeLogs(params: $params, pageNumber: $pageNumber, pageSize: $pageSize, withTotal: true) {
-            totalCount
-            timeLogs {
-              id from to label
-              employee { id fullName }
-              workLocationIn { name }
-            }
+        operationName: 'BackgroundJobQuery',
+        query: `query BackgroundJobQuery($id: ID!) {
+          backgroundJob(id: $id) {
+            id jobStatus jobType
+            file { id fileUrl }
           }
         }`,
-        variables: {
-          params: { from: date, to: date, selectedUnitIds: [], selectedRoomIds: [], selectedEmployeeIds: [] },
-          pageNumber: 1,
-          pageSize: 5,
-        },
+        variables: { id: jobId },
       }),
       cache: 'no-store',
     })
 
-    const json = await res.json()
+    const jobJson = await jobRes.json()
+    const job = jobJson.data?.backgroundJob
 
     return NextResponse.json({
-      queryOk: !json.errors?.length && !!json.data,
-      hasErrors: !!json.errors?.length,
-      errors: json.errors || null,
-      totalCount: json.data?.pagedTimeLogs?.totalCount ?? null,
-      sampleLogs: json.data?.pagedTimeLogs?.timeLogs?.slice(0, 3) ?? [],
-      rawError: json.error || null,
+      exportOk: exportRes.ok,
+      jobId,
+      jobStatus: job?.jobStatus ?? null,
+      jobType: job?.jobType ?? null,
+      hasFile: !!job?.file,
+      fileUrl: job?.file?.fileUrl ?? null,
+      exportRaw: exportJson,
+      jobErrors: jobJson.errors ?? null,
       tokenExpiry: (() => {
         try { return JSON.parse(atob(token.split('.')[1])).expiryDate } catch { return null }
       })(),

@@ -23,20 +23,22 @@ export default function TalexioPull() {
       const res = await fetch(`/api/import/test-talexio?date=${dateFrom}&token=${encodeURIComponent(token.trim())}`)
       const data = await res.json()
 
-      if (data.hasErrors) {
-        setError(`API error: ${data.errors?.[0]?.message || 'Unknown'}`)
+      if (data.error) {
+        setError(data.error)
         setStep('error')
         return
       }
 
-      if (data.queryOk) {
-        setProgress('')
-        setStep('idle')
-        alert(`Connection OK!\n\nTime logs for ${dateFrom}: ${data.totalCount}\nToken expires: ${data.tokenExpiry || 'unknown'}\n\nSample: ${data.sampleLogs.map((l: { employee?: { fullName: string } }) => l.employee?.fullName).join(', ') || '(no logs for this date)'}`)
-      } else {
-        setError(data.error || 'Query returned no data')
-        setStep('error')
-      }
+      setProgress('')
+      setStep('idle')
+      const lines = [
+        `Export endpoint: ${data.exportOk ? 'OK' : 'FAILED'}`,
+        `Job ID: ${data.jobId}`,
+        `Job status: ${data.jobStatus || 'unknown'}`,
+        `Token expires: ${data.tokenExpiry || 'unknown'}`,
+      ]
+      if (data.jobErrors?.length) lines.push(`Errors: ${data.jobErrors.map((e: { message: string }) => e.message).join(', ')}`)
+      alert(lines.join('\n'))
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Test failed')
       setStep('error')
