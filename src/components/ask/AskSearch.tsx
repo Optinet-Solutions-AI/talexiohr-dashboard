@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { Search, Loader2, RotateCw, Bookmark, BookmarkCheck, Trash2, Sparkles } from 'lucide-react'
+import { Search, Loader2, RotateCw, Bookmark, BookmarkCheck, Trash2, Sparkles, Mic, MicOff } from 'lucide-react'
 
 interface Answer {
   id: string
@@ -21,7 +21,42 @@ export default function AskSearch() {
   const [loading, setLoading] = useState(false)
   const [answers, setAnswers] = useState<Answer[]>([])
   const [showSavedOnly, setShowSavedOnly] = useState(false)
+  const [listening, setListening] = useState(false)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const recognitionRef = useRef<any>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+
+  function toggleVoice() {
+    if (listening) {
+      recognitionRef.current?.stop()
+      setListening(false)
+      return
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const w = window as any
+    const SR = w.SpeechRecognition ?? w.webkitSpeechRecognition
+    if (!SR) return
+
+    const recognition = new SR()
+    recognition.lang = 'en-US'
+    recognition.interimResults = true
+    recognition.continuous = false
+    recognitionRef.current = recognition
+
+    recognition.onresult = (event: { results: { [key: number]: { transcript: string }; isFinal: boolean; length: number }[] }) => {
+      const transcript = Array.from(event.results).map((r: any) => r[0].transcript).join('')
+      setQuery(transcript)
+      if ((event.results[0] as any)?.isFinal) {
+        setListening(false)
+      }
+    }
+    recognition.onerror = () => setListening(false)
+    recognition.onend = () => setListening(false)
+
+    recognition.start()
+    setListening(true)
+  }
 
   // Load saved answers from localStorage
   useEffect(() => {
@@ -126,9 +161,16 @@ export default function AskSearch() {
               autoFocus
             />
             <button
+              onClick={toggleVoice}
+              className={`ml-2 p-2 rounded-lg transition-colors ${listening ? 'bg-red-500 text-white animate-pulse' : 'text-slate-400 hover:text-indigo-600 hover:bg-slate-50'}`}
+              title={listening ? 'Stop listening' : 'Voice input'}
+            >
+              {listening ? <MicOff size={16} /> : <Mic size={16} />}
+            </button>
+            <button
               onClick={() => handleAsk()}
               disabled={loading || !query.trim()}
-              className="ml-2 p-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-colors disabled:opacity-40"
+              className="ml-1 p-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-colors disabled:opacity-40"
             >
               {loading ? <Loader2 size={16} className="animate-spin" /> : <Search size={16} />}
             </button>
