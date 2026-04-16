@@ -145,12 +145,18 @@ export default function AskSearch() {
             streaming: false,
           })
         } else if (event.type === 'error') {
-          updateCard({
-            status: undefined,
-            streaming: false,
-            errored: true,
-            answer: (event.message ? `Error: ${event.message}` : 'Error while generating answer'),
-          })
+          setAnswers(prev => prev.map(a => {
+            if (a.id !== cardId) return a
+            const errMsg = event.message ? `Error: ${event.message}` : 'Error while generating answer'
+            return {
+              ...a,
+              status: undefined,
+              streaming: false,
+              errored: true,
+              // Preserve any tokens already streamed; append error note below.
+              answer: a.answer ? `${a.answer}\n\n_${errMsg}_` : errMsg,
+            }
+          }))
         }
       }
       clearTimeout(timeout)
