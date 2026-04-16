@@ -11,13 +11,17 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
 export async function POST(req: NextRequest) {
   const started = Date.now()
   const supabase = createAdminClient()
-  let userId: string | null = null
-
+  let userId: string
   try {
     const authed = await createServerClient()
-    const { data: { user } } = await authed.auth.getUser()
-    userId = user?.id ?? null
-  } catch { /* anonymous ok */ }
+    const { data: { user }, error } = await authed.auth.getUser()
+    if (error || !user) {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    }
+    userId = user.id
+  } catch {
+    return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+  }
 
   let question = ''
   try {
