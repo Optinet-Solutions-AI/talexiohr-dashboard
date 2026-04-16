@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { loginTalexio, triggerExport, pollBackgroundJob, downloadExportFile } from '@/lib/talexio/session'
 import { format } from 'date-fns'
 
 const OFFICE_LAT = 35.9222072, OFFICE_LNG = 14.4878368, OFFICE_KM = 0.12
@@ -11,7 +12,7 @@ function gpsKm(lat1: number, lng1: number, lat2: number, lng2: number) {
 }
 
 function isOfficeGps(lat: number | null, lng: number | null) {
-  return lat && lng ? gpsKm(lat, lng, OFFICE_LAT, OFFICE_LNG) <= OFFICE_KM : false
+  return lat != null && lng != null && !isNaN(lat) && !isNaN(lng) ? gpsKm(lat, lng, OFFICE_LAT, OFFICE_LNG) <= OFFICE_KM : false
 }
 
 function isOfficeName(n: string | null) {
@@ -20,92 +21,46 @@ function isOfficeName(n: string | null) {
   return l.includes('head office') || l === 'office' || l.includes('ta office')
 }
 
-function classifyStatus(locIn: string | null, latIn: number | null, lngIn: number | null, label: string | null) {
-  const loc = (locIn ?? '').toLowerCase()
-  if (loc.includes('no clocking')) {
-    const lbl = (label ?? '').toLowerCase()
-    if (lbl.includes('vacation') || lbl.includes('annual leave')) return 'vacation'
-    return 'no_clocking'
+function parseTime(v: string | undefined) {
+  if (!v || v === 'Broken Clocking' || v === 'Active Clocking') return null
+  return /^\d{1,2}:\d{2}$/.test(v.trim()) ? v.trim() + ':00' : null
+}
+
+function toMin(t: string | null) {
+  if (!t) return null
+  const [h, m] = t.split(':').map(Number)
+  return h * 60 + m
+}
+
+// Parse the CSV that Talexio exports (same format as the Clockings CSV)
+// Columns: Employee Code, First Name, Last Name, Job Schedule, Unit, Business Unit,
+//          Work Code, Location In, Lat In, Lng In, Location Out, Lat Out, Lng Out,
+//          Date, Day, Time In, Time Out, Hours
+function parseExportCsv(text: string) {
+  const lines = text.split(/\r?\n/).slice(1)
+  type Row = {
+    code: string; firstName: string; lastName: string; unit: string; date: string
+    locationIn: string | null; latIn: number | null; lngIn: number | null
+    locationOut: string | null; latOut: number | null; lngOut: number | null
+    timeIn: string | null; timeOut: string | null; hours: number
+    isBroken: boolean; isActive: boolean
   }
-  if (loc.includes('active')) return 'active'
-  if (loc.includes('broken')) return 'broken'
-  if (loc.includes('wfh') || loc.includes('work from home')) return 'wfh'
-  if (loc.includes('not from the office') || loc.includes('remote') || loc.includes('other location')) return 'remote'
-  if (isOfficeName(locIn)) return 'office'
-  if (isOfficeGps(latIn, lngIn)) return 'office'
-  return 'unknown'
-}
-
-interface TimeLog {
-  id: string
-  from: string | null
-  to: string | null
-  locationLatIn: number | null
-  locationLongIn: number | null
-  locationLatOut: number | null
-  locationLongOut: number | null
-  label: string | null
-  employee: { id: string; fullName: string; firstName: string; lastName: string }
-  workLocationIn: { id: string; name: string; long: number | null; lat: number | null } | null
-  workLocationOut: { id: string; name: string; long: number | null; lat: number | null } | null
-  workCode: { id: string; name: string; code: string } | null
-}
-
-async function fetchAllTimeLogs(dateFrom: string, dateTo: string): Promise<TimeLog[]> {
-  const API_URL = process.env.NEXT_PUBLIC_TALEXIOHR_API_URL!
-  const API_TOKEN = process.env.NEXT_PUBLIC_TALEXIOHR_TOKEN!
-  const API_DOMAIN = process.env.NEXT_PUBLIC_TALEXIOHR_CLIENT_DOMAIN!
-  const PAGE_SIZE = 100
-  let page = 1
-  const all: TimeLog[] = []
-
-  while (true) {
-    const res = await fetch(API_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'talexio-api-token': API_TOKEN,
-        'client-domain': API_DOMAIN,
-      },
-      body: JSON.stringify({
-        query: `
-          query PullTimeLogs($params: TimeLogsFilterParams, $pageNumber: Int!, $pageSize: Int!) {
-            pagedTimeLogs(params: $params, pageNumber: $pageNumber, pageSize: $pageSize, withTotal: true) {
-              totalCount
-              timeLogs {
-                id from to
-                locationLatIn locationLongIn locationLatOut locationLongOut
-                label
-                employee { id fullName firstName lastName }
-                workLocationIn { id name long lat }
-                workLocationOut { id name long lat }
-                workCode { id name code }
-              }
-            }
-          }
-        `,
-        variables: {
-          params: { from: dateFrom, to: dateTo, selectedUnitIds: [], selectedRoomIds: [], selectedEmployeeIds: [] },
-          pageNumber: page,
-          pageSize: PAGE_SIZE,
-        },
-      }),
-      cache: 'no-store',
+  const rows: Row[] = []
+  for (const line of lines) {
+    if (!line.trim()) continue
+    const c = line.split(',')
+    const code = c[0]?.trim(), date = c[13]?.trim()
+    if (!code || !date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) continue
+    rows.push({
+      code, firstName: c[1]?.trim() || '', lastName: c[2]?.trim() || '', unit: c[4]?.trim() || '',
+      date,
+      locationIn: c[7]?.trim() || null, latIn: parseFloat(c[8]) || null, lngIn: parseFloat(c[9]) || null,
+      locationOut: c[10]?.trim() || null, latOut: parseFloat(c[11]) || null, lngOut: parseFloat(c[12]) || null,
+      timeIn: parseTime(c[15]?.trim()), timeOut: parseTime(c[16]?.trim()), hours: parseFloat(c[17]) || 0,
+      isBroken: c[16]?.trim() === 'Broken Clocking', isActive: c[16]?.trim() === 'Active Clocking',
     })
-
-    const json = await res.json()
-
-    if (json.error) throw new Error(`Talexio API: ${json.error}`)
-    if (json.errors?.length) throw new Error(`Talexio: ${json.errors.map((e: { message: string }) => e.message).join(', ')}`)
-
-    const batch = json.data?.pagedTimeLogs?.timeLogs ?? []
-    all.push(...batch)
-    const total = json.data?.pagedTimeLogs?.totalCount ?? 0
-    if (all.length >= total || batch.length === 0) break
-    page++
   }
-
-  return all
+  return rows
 }
 
 export async function POST(req: NextRequest) {
@@ -113,105 +68,91 @@ export async function POST(req: NextRequest) {
     const { dateFrom, dateTo } = await req.json()
     if (!dateFrom || !dateTo) return NextResponse.json({ error: 'dateFrom and dateTo required' }, { status: 400 })
 
-    // 1. Fetch from Talexio
-    const logs = await fetchAllTimeLogs(dateFrom, dateTo)
-    if (logs.length === 0) {
-      return NextResponse.json({ ok: true, fetched: 0, saved: 0, employees: 0, message: 'No time logs returned from Talexio for this date range' })
+    // 1. Login to get Bearer token
+    const token = await loginTalexio()
+
+    // 2. Trigger the export
+    const jobId = await triggerExport(token, dateFrom, dateTo)
+
+    // 3. Poll until complete
+    const job = await pollBackgroundJob(token, jobId)
+
+    if (!job.file?.fileUrl) {
+      return NextResponse.json({ error: 'Export completed but no file was generated', jobStatus: job.jobStatus }, { status: 500 })
+    }
+
+    // 4. Download the CSV
+    const csvText = await downloadExportFile(token, job.file.fileUrl)
+
+    // 5. Parse the CSV
+    const rows = parseExportCsv(csvText)
+    if (rows.length === 0) {
+      return NextResponse.json({ ok: true, fetched: 0, saved: 0, employees: 0, message: 'Export file contained no clocking rows' })
     }
 
     const supabase = createAdminClient()
 
-    // 2. Group by employee+date (multiple clock sessions per day)
-    type AggKey = { empId: string; empName: string; firstName: string; lastName: string; date: string; logs: TimeLog[] }
-    const grouped = new Map<string, AggKey>()
+    // 6. Upsert employees
+    const empMap = new Map<string, { firstName: string; lastName: string; unit: string }>()
+    for (const r of rows) { if (!empMap.has(r.code)) empMap.set(r.code, { firstName: r.firstName, lastName: r.lastName, unit: r.unit }) }
 
-    for (const log of logs) {
-      if (!log.employee) continue
-      const date = log.from ? format(new Date(log.from), 'yyyy-MM-dd') : dateFrom
-      const key = `${log.employee.id}::${date}`
-      if (!grouped.has(key)) {
-        grouped.set(key, {
-          empId: log.employee.id,
-          empName: log.employee.fullName,
-          firstName: log.employee.firstName || log.employee.fullName.split(' ').slice(0, -1).join(' '),
-          lastName: log.employee.lastName || log.employee.fullName.split(' ').slice(-1)[0],
-          date,
-          logs: [],
-        })
-      }
-      grouped.get(key)!.logs.push(log)
+    const dbEmpMap = new Map<string, string>()
+    for (const [code, emp] of empMap) {
+      const { data } = await supabase.from('employees').upsert(
+        { talexio_id: code, first_name: emp.firstName, last_name: emp.lastName },
+        { onConflict: 'talexio_id' }
+      ).select('id').single()
+      if (data) dbEmpMap.set(code, data.id)
     }
 
-    // 3. Upsert employees and attendance records
+    // 7. Group by employee+date and aggregate
+    const grouped = new Map<string, typeof rows>()
+    for (const r of rows) {
+      const key = `${r.code}::${r.date}`
+      if (!grouped.has(key)) grouped.set(key, [])
+      grouped.get(key)!.push(r)
+    }
+
     let saved = 0
-    const empSet = new Set<string>()
+    for (const [key, sessions] of grouped) {
+      const [code, date] = key.split('::')
+      const empId = dbEmpMap.get(code)
+      if (!empId) continue
 
-    for (const [, agg] of grouped) {
-      // Upsert employee
-      const { data: empRow } = await supabase
-        .from('employees')
-        .upsert({ talexio_id: agg.empId, first_name: agg.firstName, last_name: agg.lastName }, { onConflict: 'talexio_id' })
-        .select('id').single()
-      if (!empRow) continue
-      empSet.add(empRow.id)
+      const hasOffice = sessions.some(s => isOfficeName(s.locationIn) || isOfficeName(s.locationOut) || isOfficeGps(s.latIn, s.lngIn) || isOfficeGps(s.latOut, s.lngOut))
+      const allBroken = sessions.every(s => s.isBroken || s.isActive)
+      const hasActive = sessions.some(s => s.isActive)
+      const hasBroken = sessions.some(s => s.isBroken)
 
-      // Aggregate sessions for this day
-      const sessions = agg.logs
-      const firstLog = sessions[0]
-
-      // Location: prefer workLocationIn, fall back to GPS
-      const locIn = firstLog.workLocationIn?.name ?? firstLog.workCode?.name ?? null
-      const locOut = firstLog.workLocationOut?.name ?? null
-      const latIn = firstLog.locationLatIn ?? firstLog.workLocationIn?.lat ?? null
-      const lngIn = firstLog.locationLongIn ?? firstLog.workLocationIn?.long ?? null
-      const latOut = firstLog.locationLatOut ?? firstLog.workLocationOut?.lat ?? null
-      const lngOut = firstLog.locationLongOut ?? firstLog.workLocationOut?.long ?? null
-
-      // Status: check all sessions
-      let status = 'unknown'
-      const hasOffice = sessions.some(s => {
-        const ln = s.workLocationIn?.name ?? s.workCode?.name ?? null
-        const la = s.locationLatIn ?? s.workLocationIn?.lat ?? null
-        const lo = s.locationLongIn ?? s.workLocationIn?.long ?? null
-        return isOfficeName(ln) || isOfficeGps(la, lo)
-      })
-      const hasWfh = sessions.some(s => {
-        const n = (s.workLocationIn?.name ?? '').toLowerCase()
-        return n.includes('wfh') || n.includes('work from home')
-      })
-
+      let status = 'remote'
       if (hasOffice) status = 'office'
-      else if (hasWfh) status = 'wfh'
-      else status = classifyStatus(locIn, latIn, lngIn, firstLog.label)
+      else if (hasActive) status = 'active'
+      else if (allBroken) status = 'broken'
 
-      // Time in/out: earliest in, latest out
-      const ins = sessions.filter(s => s.from).map(s => new Date(s.from!).getTime())
-      const outs = sessions.filter(s => s.to).map(s => new Date(s.to!).getTime())
-      const timeIn = ins.length ? format(new Date(Math.min(...ins)), 'HH:mm:ss') : null
-      const timeOut = outs.length ? format(new Date(Math.max(...outs)), 'HH:mm:ss') : null
+      const validIns = sessions.filter(s => s.timeIn).map(s => toMin(s.timeIn)).filter(Boolean) as number[]
+      const validOuts = sessions.filter(s => s.timeOut).map(s => toMin(s.timeOut)).filter(Boolean) as number[]
+      const earliest = validIns.length ? Math.min(...validIns) : null
+      const latest = validOuts.length ? Math.max(...validOuts) : null
+      const timeIn = earliest != null ? String(Math.floor(earliest / 60)).padStart(2, '0') + ':' + String(earliest % 60).padStart(2, '0') + ':00' : null
+      const timeOut = latest != null ? String(Math.floor(latest / 60)).padStart(2, '0') + ':' + String(latest % 60).padStart(2, '0') + ':00' : null
+      const hoursWorked = sessions.reduce((s, r) => s + (r.hours > 0 ? r.hours : 0), 0) || null
 
-      // Hours
-      let hours: number | null = null
-      if (ins.length && outs.length) {
-        hours = Math.round(((Math.max(...outs) - Math.min(...ins)) / 3_600_000) * 100) / 100
-      }
+      const first = sessions[0]
+      const officeSession = sessions.find(s => isOfficeName(s.locationIn) || isOfficeName(s.locationOut)) ?? first
+
+      const comments = [
+        hasBroken && !allBroken ? 'Has broken clocking(s)' : null,
+        allBroken ? 'All clockings broken' : null,
+        hasActive ? 'Active clocking' : null,
+      ].filter(Boolean).join('; ') || null
 
       await supabase.from('attendance_records').upsert({
-        employee_id: empRow.id,
-        date: agg.date,
-        location_in: locIn,
-        lat_in: latIn, lng_in: lngIn,
-        time_in: timeIn,
-        location_out: locOut,
-        lat_out: latOut, lng_out: lngOut,
-        time_out: timeOut,
-        hours_worked: hours,
-        status,
-        comments: firstLog.label,
-        raw_data: sessions,
-        updated_at: new Date().toISOString(),
+        employee_id: empId, date,
+        location_in: officeSession.locationIn, lat_in: officeSession.latIn, lng_in: officeSession.lngIn, time_in: timeIn,
+        location_out: officeSession.locationOut, lat_out: officeSession.latOut, lng_out: officeSession.lngOut, time_out: timeOut,
+        hours_worked: hoursWorked ? Math.round(hoursWorked * 100) / 100 : null,
+        status, comments, raw_data: sessions, updated_at: new Date().toISOString(),
       }, { onConflict: 'employee_id,date' })
-
       saved++
     }
 
@@ -220,7 +161,13 @@ export async function POST(req: NextRequest) {
       sync_date: dateFrom, source: 'talexio', records: saved, status: 'success',
     })
 
-    return NextResponse.json({ ok: true, fetched: logs.length, saved, employees: empSet.size })
+    return NextResponse.json({
+      ok: true,
+      fetched: rows.length,
+      saved,
+      employees: dbEmpMap.size,
+      dateRange: { from: dateFrom, to: dateTo },
+    })
   } catch (err) {
     console.error('[import/pull]', err)
     return NextResponse.json({ error: err instanceof Error ? err.message : 'Pull failed' }, { status: 500 })
