@@ -3,7 +3,6 @@ import { format } from 'date-fns'
 import StatCards from '@/components/attendance/StatCards'
 import AttendanceFilters from '@/components/attendance/AttendanceFilters'
 import StatusBadge from '@/components/attendance/StatusBadge'
-import CsvImport from '@/components/attendance/CsvImport'
 
 export const dynamic = 'force-dynamic'
 
@@ -60,7 +59,9 @@ export default async function AttendancePage({ searchParams }: PageProps) {
           <h1 className="text-xl font-bold text-slate-800">Attendance</h1>
           <p className="text-xs text-slate-600 mt-0.5">Daily attendance records</p>
         </div>
-        <CsvImport />
+        <a href="/dashboard/import" className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 transition-colors">
+          Import CSV
+        </a>
       </div>
 
       <StatCards stats={stats} />
