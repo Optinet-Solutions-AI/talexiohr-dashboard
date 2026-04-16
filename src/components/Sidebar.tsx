@@ -6,7 +6,6 @@ import {
   LayoutDashboard,
   Users,
   CalendarDays,
-  Wallet,
   Settings,
   ClipboardList,
   ShieldCheck,
@@ -18,7 +17,6 @@ const navItems = [
   { label: 'Compliance', href: '/dashboard/compliance',   icon: ShieldCheck     },
   { label: 'Employees',  href: '/dashboard/employees',    icon: Users           },
   { label: 'Leave',      href: '/dashboard/leave',        icon: CalendarDays    },
-  { label: 'Payroll',    href: '/dashboard/payroll',      icon: Wallet          },
   { label: 'Settings',   href: '/dashboard/settings',     icon: Settings        },
 ]
 
