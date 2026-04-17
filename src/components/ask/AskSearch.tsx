@@ -27,6 +27,7 @@ export default function AskSearch() {
   const [listening, setListening] = useState(false)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const recognitionRef = useRef<any>(null)
+  const voiceSubmitTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   function toggleVoice() {
@@ -52,7 +53,11 @@ export default function AskSearch() {
       setQuery(transcript)
       if ((event.results[0] as any)?.isFinal) {
         setListening(false)
-        handleAsk(transcript)
+        // Wait 2 seconds before auto-submitting so the user can review
+        // the transcription and cancel if needed (click search or hit Enter
+        // to submit immediately instead of waiting).
+        if (voiceSubmitTimer.current) clearTimeout(voiceSubmitTimer.current)
+        voiceSubmitTimer.current = setTimeout(() => handleAsk(transcript), 2000)
       }
     }
     recognition.onerror = () => setListening(false)
