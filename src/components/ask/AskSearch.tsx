@@ -52,6 +52,7 @@ export default function AskSearch() {
       setQuery(transcript)
       if ((event.results[0] as any)?.isFinal) {
         setListening(false)
+        handleAsk(transcript)
       }
     }
     recognition.onerror = () => setListening(false)
