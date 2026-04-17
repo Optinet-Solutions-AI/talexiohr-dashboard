@@ -44,14 +44,13 @@ async function fetchWorkShifts(token: string, dateFrom: string, dateTo: string) 
   while (true) {
     const res = await gqlFetch(token,
       `query PullWorkShifts($params: WorkShiftsFilterParams!, $pageNumber: Int!, $pageSize: Int!) {
-        pagedWorkShifts(params: $params, pageNumber: $pageNumber, pageSize: $pageSize, withTotal: true) {
+        pagedWorkShifts(params: $params, pageNumber: $pageNumber, pageSize: $pageSize) {
           totalCount
           workShifts {
             id
-            dateFrom
-            dateTo
-            totalHours
-            isPublished
+            date
+            from
+            to
             employee { id fullName firstName lastName }
             workLocation { id name long lat }
             timeLogs {
@@ -77,25 +76,38 @@ async function fetchWorkShifts(token: string, dateFrom: string, dateTo: string) 
   return { shifts: all }
 }
 
-// ── Fetch Leave Schedule ─────────────────────────────────────────────────────
-async function fetchLeaveSchedule(token: string, dateFrom: string, dateTo: string) {
+// ── Fetch Leave (via employees.leave field) ──────────────────────────────────
+async function fetchLeaveSchedule(token: string, _dateFrom: string, _dateTo: string) {
   const res = await gqlFetch(token,
-    `query PullLeaveSchedule($dateFrom: Date!, $dateTo: Date!) {
-      leaveSchedule(dateFrom: $dateFrom, dateTo: $dateTo) {
-        id
-        date
-        from
-        to
-        hours
-        leaveTypeName
-        employee { id fullName firstName lastName }
+    `query PullLeave {
+      employees {
+        id fullName firstName lastName
+        leave {
+          ... on EmployeeLeave {
+            id
+            date
+            from
+            to
+            hours
+            leaveTypeName
+          }
+        }
       }
     }`,
-    { dateFrom, dateTo }
+    {}
   )
   const json = await res.json()
   if (json.errors?.length) return { entries: [], error: json.errors.map((e: { message: string }) => e.message).join(', ') }
-  return { entries: json.data?.leaveSchedule ?? [] }
+
+  // Flatten: one entry per employee leave record, including employee info
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const entries: any[] = []
+  for (const emp of json.data?.employees ?? []) {
+    for (const leave of emp.leave ?? []) {
+      entries.push({ ...leave, employee: { id: emp.id, fullName: emp.fullName, firstName: emp.firstName, lastName: emp.lastName } })
+    }
+  }
+  return { entries }
 }
 
 // ── Save Work Shifts (as attendance records) ─────────────────────────────────
@@ -109,7 +121,7 @@ async function saveWorkShifts(shifts: any[], dateFrom: string) {
 
   for (const s of shifts) {
     if (!s.employee) continue
-    const date = s.dateFrom ? s.dateFrom.slice(0, 10) : dateFrom
+    const date = s.date ? s.date.slice(0, 10) : s.from ? s.from.slice(0, 10) : dateFrom
     const key = `${s.employee.id}::${date}`
     if (!grouped.has(key)) {
       grouped.set(key, {
@@ -160,9 +172,11 @@ async function saveWorkShifts(shifts: any[], dateFrom: string) {
     const timeIn = ins.length ? new Date(Math.min(...ins)).toISOString().slice(11, 19) : null
     const timeOut = outs.length ? new Date(Math.max(...outs)).toISOString().slice(11, 19) : null
 
-    // Total hours from shift data (more reliable than computing from logs)
-    let totalHours: number | null = agg.shifts.reduce((sum, s) => sum + (s.totalHours || 0), 0) || null
-    if (totalHours != null) totalHours = Math.round(totalHours * 100) / 100
+    // Compute hours from earliest in → latest out
+    let totalHours: number | null = null
+    if (ins.length && outs.length) {
+      totalHours = Math.round(((Math.max(...outs) - Math.min(...ins)) / 3_600_000) * 100) / 100
+    }
 
     // Detect broken: has time_in but no time_out
     const hasBroken = ins.length > 0 && outs.length === 0

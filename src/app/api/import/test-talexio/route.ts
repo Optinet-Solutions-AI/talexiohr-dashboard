@@ -23,9 +23,9 @@ export async function GET(req: NextRequest) {
       body: JSON.stringify({
         operationName: 'TestWorkShifts',
         query: `query TestWorkShifts($params: WorkShiftsFilterParams!, $pageNumber: Int!, $pageSize: Int!) {
-          pagedWorkShifts(params: $params, pageNumber: $pageNumber, pageSize: $pageSize, withTotal: true) {
+          pagedWorkShifts(params: $params, pageNumber: $pageNumber, pageSize: $pageSize) {
             totalCount
-            workShifts { id dateFrom dateTo totalHours employee { id fullName } workLocation { name } }
+            workShifts { id date from to employee { id fullName } workLocation { name } timeLogs { id from to workLocationIn { name } } }
           }
         }`,
         variables: { params: { dateFrom: date, dateTo: date, employeeIds: [] }, pageNumber: 1, pageSize: 3 },
@@ -45,13 +45,18 @@ export async function GET(req: NextRequest) {
         'apollographql-client-version': '1.0',
       },
       body: JSON.stringify({
-        operationName: 'TestLeaveSchedule',
-        query: `query TestLeaveSchedule($dateFrom: Date!, $dateTo: Date!) {
-          leaveSchedule(dateFrom: $dateFrom, dateTo: $dateTo) {
-            id date from to hours leaveTypeName employee { id fullName }
+        operationName: 'TestLeave',
+        query: `query TestLeave {
+          employees {
+            id fullName
+            leave {
+              ... on EmployeeLeave {
+                id date from to hours leaveTypeName
+              }
+            }
           }
         }`,
-        variables: { dateFrom: date, dateTo: date },
+        variables: {},
       }),
       cache: 'no-store',
     })
@@ -64,11 +69,12 @@ export async function GET(req: NextRequest) {
         totalCount: shiftsJson.data?.pagedWorkShifts?.totalCount ?? null,
         sample: shiftsJson.data?.pagedWorkShifts?.workShifts?.slice(0, 2) ?? [],
       },
-      leaveSchedule: {
+      leave: {
         ok: !leaveJson.errors?.length,
         errors: leaveJson.errors || null,
-        count: leaveJson.data?.leaveSchedule?.length ?? null,
-        sample: leaveJson.data?.leaveSchedule?.slice(0, 2) ?? [],
+        totalEmployees: leaveJson.data?.employees?.length ?? null,
+        employeesWithLeave: leaveJson.data?.employees?.filter((e: { leave?: unknown[] }) => (e.leave?.length ?? 0) > 0).length ?? null,
+        sample: leaveJson.data?.employees?.filter((e: { leave?: unknown[] }) => (e.leave?.length ?? 0) > 0).slice(0, 2) ?? [],
       },
       tokenExpiry: (() => { try { return JSON.parse(atob(token.split('.')[1])).expiryDate } catch { return null } })(),
     })
