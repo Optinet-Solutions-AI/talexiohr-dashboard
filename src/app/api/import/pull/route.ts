@@ -4,7 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 const DOMAIN = 'roosterpartners.talexiohr.com'
 const GQL_URL = 'https://api.talexiohr.com/graphql'
 
-const OFFICE_LAT = 35.9222072, OFFICE_LNG = 14.4878368, OFFICE_KM = 0.12
+const OFFICE_LAT = 35.9222072, OFFICE_LNG = 14.4878368, OFFICE_KM = 0.15
 
 function gpsKm(lat1: number, lng1: number, lat2: number, lng2: number) {
   const R = 6371, dLat = (lat2 - lat1) * Math.PI / 180, dLng = (lng2 - lng1) * Math.PI / 180
@@ -19,23 +19,6 @@ function isOfficeName(n: string | null) {
   return l.includes('head office') || l === 'office' || l.includes('ta office')
 }
 
-// ── Types ────────────────────────────────────────────────────────────────────
-interface TimeLog {
-  id: string; from: string | null; to: string | null
-  locationLatIn: number | null; locationLongIn: number | null
-  locationLatOut: number | null; locationLongOut: number | null
-  label: string | null
-  employee: { id: string; fullName: string; firstName: string; lastName: string }
-  workLocationIn: { name: string; lat: number | null; long: number | null } | null
-  workLocationOut: { name: string } | null
-  workCode: { name: string } | null
-}
-
-interface LeaveEntry {
-  employeeId: string; employeeName: string; date: string; type: 'vacation' | 'sick'
-}
-
-// ── Helpers ──────────────────────────────────────────────────────────────────
 function gqlFetch(token: string, query: string, variables: Record<string, unknown>) {
   return fetch(GQL_URL, {
     method: 'POST',
@@ -51,121 +34,99 @@ function gqlFetch(token: string, query: string, variables: Record<string, unknow
   })
 }
 
-// ── Fetch time logs (direct GraphQL) ─────────────────────────────────────────
-async function fetchTimeLogs(token: string, dateFrom: string, dateTo: string): Promise<{ logs: TimeLog[]; error?: string }> {
+// ── Fetch Work Shifts ────────────────────────────────────────────────────────
+async function fetchWorkShifts(token: string, dateFrom: string, dateTo: string) {
   const PAGE_SIZE = 100
   let page = 1
-  const all: TimeLog[] = []
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const all: any[] = []
 
   while (true) {
     const res = await gqlFetch(token,
-      `query PullTimeLogs($params: TimeLogsFilterParams!, $pageNumber: Int!, $pageSize: Int!) {
-        pagedTimeLogs(params: $params, pageNumber: $pageNumber, pageSize: $pageSize, withTotal: true) {
+      `query PullWorkShifts($params: WorkShiftsFilterParams!, $pageNumber: Int!, $pageSize: Int!) {
+        pagedWorkShifts(params: $params, pageNumber: $pageNumber, pageSize: $pageSize) {
           totalCount
-          timeLogs {
-            id from to
-            locationLatIn locationLongIn locationLatOut locationLongOut
-            label
+          workShifts {
+            id
+            date
+            from
+            to
             employee { id fullName firstName lastName }
-            workLocationIn { name long lat }
-            workLocationOut { name }
-            workCode { name }
+            workLocation { id name long lat }
           }
         }
       }`,
       { params: { dateFrom, dateTo, employeeIds: [] }, pageNumber: page, pageSize: PAGE_SIZE }
     )
     const json = await res.json()
-    if (json.errors?.length) return { logs: [], error: json.errors.map((e: { message: string }) => e.message).join(', ') }
-    if (!json.data?.pagedTimeLogs) return { logs: [], error: 'No data returned' }
+    if (json.errors?.length) return { shifts: [], error: json.errors.map((e: { message: string }) => e.message).join(', ') }
+    if (!json.data?.pagedWorkShifts) return { shifts: [], error: 'No data' }
 
-    const batch = json.data.pagedTimeLogs.timeLogs ?? []
+    const batch = json.data.pagedWorkShifts.workShifts ?? []
     all.push(...batch)
-    if (all.length >= (json.data.pagedTimeLogs.totalCount ?? 0) || batch.length === 0) break
+    if (all.length >= (json.data.pagedWorkShifts.totalCount ?? 0) || batch.length === 0) break
     page++
   }
-  return { logs: all }
+  return { shifts: all }
 }
 
-// ── Fetch leave (try employees query with leave field) ───────────────────────
-async function fetchLeave(token: string, dateFrom: string, dateTo: string): Promise<{ entries: LeaveEntry[]; error?: string }> {
-  // Try querying employees with their leave in the date range
+// ── Fetch Leave (via employees.leave field) ──────────────────────────────────
+async function fetchLeaveSchedule(token: string, _dateFrom: string, _dateTo: string) {
   const res = await gqlFetch(token,
-    `query PullLeave($params: EmployeesParams) {
-      employees(params: $params) {
-        id fullName
+    `query PullLeave {
+      employees {
+        id fullName firstName lastName
         leave {
           ... on EmployeeLeave {
             id
             date
             from
             to
-            leaveTypeName
             hours
+            leaveTypeName
           }
         }
       }
     }`,
-    { params: {} }
+    {}
   )
   const json = await res.json()
+  if (json.errors?.length) return { entries: [], error: json.errors.map((e: { message: string }) => e.message).join(', ') }
 
-  if (json.errors?.length) {
-    // Leave query might not work — not a fatal error
-    return { entries: [], error: json.errors.map((e: { message: string }) => e.message).join(', ') }
-  }
-
-  const entries: LeaveEntry[] = []
-  const employees = json.data?.employees ?? []
-  for (const emp of employees) {
+  // Flatten: one entry per employee leave record, including employee info
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const entries: any[] = []
+  for (const emp of json.data?.employees ?? []) {
     for (const leave of emp.leave ?? []) {
-      // Use 'date' field (single day) or 'from'/'to' for range
-      const leaveDate = leave.date ?? (leave.from ? leave.from.slice(0, 10) : null)
-      const leaveTo = leave.to ? leave.to.slice(0, 10) : leaveDate
-      if (!leaveDate) continue
-      // Only include leave days within our date range
-      const start = leaveDate > dateFrom ? leaveDate : dateFrom
-      const end = (leaveTo ?? leaveDate) < dateTo ? (leaveTo ?? leaveDate) : dateTo
-      // Generate a record per day
-      const d = new Date(start + 'T00:00:00')
-      const endD = new Date(end + 'T00:00:00')
-      while (d <= endD) {
-        const day = d.getDay()
-        if (day >= 1 && day <= 5) { // weekdays only
-          const typeName = (leave.leaveTypeName ?? '').toLowerCase()
-          entries.push({
-            employeeId: emp.id,
-            employeeName: emp.fullName,
-            date: d.toISOString().slice(0, 10),
-            type: typeName.includes('sick') ? 'sick' : 'vacation',
-          })
-        }
-        d.setDate(d.getDate() + 1)
-      }
+      entries.push({ ...leave, employee: { id: emp.id, fullName: emp.fullName, firstName: emp.firstName, lastName: emp.lastName } })
     }
   }
   return { entries }
 }
 
-// ── Save clockings to DB ─────────────────────────────────────────────────────
-async function saveClockings(logs: TimeLog[], dateFrom: string) {
+// ── Save Work Shifts (as attendance records) ─────────────────────────────────
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function saveWorkShifts(shifts: any[], dateFrom: string) {
   const supabase = createAdminClient()
 
-  type Agg = { empId: string; firstName: string; lastName: string; date: string; logs: TimeLog[] }
-  const grouped = new Map<string, Agg>()
-  for (const log of logs) {
-    if (!log.employee) continue
-    const date = log.from ? log.from.slice(0, 10) : dateFrom
-    const key = `${log.employee.id}::${date}`
+  // Group by employee+date
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const grouped = new Map<string, { empId: string; firstName: string; lastName: string; fullName: string; date: string; shifts: any[] }>()
+
+  for (const s of shifts) {
+    if (!s.employee) continue
+    const date = s.date ? s.date.slice(0, 10) : s.from ? s.from.slice(0, 10) : dateFrom
+    const key = `${s.employee.id}::${date}`
     if (!grouped.has(key)) {
       grouped.set(key, {
-        empId: log.employee.id,
-        firstName: log.employee.firstName || log.employee.fullName.split(' ').slice(0, -1).join(' '),
-        lastName: log.employee.lastName || log.employee.fullName.split(' ').slice(-1)[0],
-        date, logs: [],
+        empId: s.employee.id,
+        firstName: s.employee.firstName || s.employee.fullName.split(' ').slice(0, -1).join(' '),
+        lastName: s.employee.lastName || s.employee.fullName.split(' ').slice(-1)[0],
+        fullName: s.employee.fullName,
+        date, shifts: [],
       })
     }
-    grouped.get(key)!.logs.push(log)
+    grouped.get(key)!.shifts.push(s)
   }
 
   let saved = 0
@@ -174,43 +135,56 @@ async function saveClockings(logs: TimeLog[], dateFrom: string) {
   for (const [, agg] of grouped) {
     const { data: empRow } = await supabase.from('employees')
       .upsert({ talexio_id: agg.empId, first_name: agg.firstName, last_name: agg.lastName }, { onConflict: 'talexio_id' })
-      .select('id').single()
+      .select('id, group_type').single()
     if (!empRow) continue
     empSet.add(empRow.id)
 
-    const sessions = agg.logs
-    const first = sessions[0]
-    const locIn = first.workLocationIn?.name ?? first.workCode?.name ?? null
-    const locOut = first.workLocationOut?.name ?? null
-    const latIn = first.locationLatIn ?? first.workLocationIn?.lat ?? null
-    const lngIn = first.locationLongIn ?? first.workLocationIn?.long ?? null
-    const latOut = first.locationLatOut ?? null
-    const lngOut = first.locationLongOut ?? null
+    const isMalta = empRow.group_type === 'office_malta'
 
-    const hasOffice = sessions.some(s => isOfficeName(s.workLocationIn?.name ?? s.workCode?.name ?? null) || isOfficeGps(s.locationLatIn ?? s.workLocationIn?.lat ?? null, s.locationLongIn ?? s.workLocationIn?.long ?? null))
-    const hasWfh = sessions.some(s => (s.workLocationIn?.name ?? '').toLowerCase().includes('wfh') || (s.workLocationIn?.name ?? '').toLowerCase().includes('work from home'))
-    const hasActive = sessions.some(s => (s.label ?? '').toLowerCase().includes('active'))
-    const allBroken = sessions.every(s => (s.label ?? '').toLowerCase().includes('broken') || (s.label ?? '').toLowerCase().includes('active'))
+    // Check if any shift is at the office
+    const shiftAtOffice = agg.shifts.some(s =>
+      isOfficeName(s.workLocation?.name) ||
+      isOfficeGps(s.workLocation?.lat, s.workLocation?.long)
+    )
 
-    let status = 'remote'
-    if (hasOffice) status = 'office'
-    else if (hasWfh) status = 'wfh'
-    else if (hasActive) status = 'active'
-    else if (allBroken) status = 'broken'
+    // Aggregate from/to across shifts (earliest start, latest end)
+    const froms = agg.shifts.filter(s => s.from).map(s => new Date(s.from).getTime())
+    const tos = agg.shifts.filter(s => s.to).map(s => new Date(s.to).getTime())
+    const timeIn = froms.length ? new Date(Math.min(...froms)).toISOString().slice(11, 19) : null
+    const timeOut = tos.length ? new Date(Math.max(...tos)).toISOString().slice(11, 19) : null
 
-    const ins = sessions.filter(s => s.from).map(s => new Date(s.from!).getTime())
-    const outs = sessions.filter(s => s.to).map(s => new Date(s.to!).getTime())
-    const timeIn = ins.length ? new Date(Math.min(...ins)).toISOString().slice(11, 19) : null
-    const timeOut = outs.length ? new Date(Math.max(...outs)).toISOString().slice(11, 19) : null
-    let hours: number | null = null
-    if (ins.length && outs.length) hours = Math.round(((Math.max(...outs) - Math.min(...ins)) / 3_600_000) * 100) / 100
+    let totalHours: number | null = null
+    if (froms.length && tos.length) {
+      totalHours = Math.round(((Math.max(...tos) - Math.min(...froms)) / 3_600_000) * 100) / 100
+    }
+
+    // Status classification
+    let status: string
+    if (shiftAtOffice) status = 'office'
+    else if (agg.shifts.length === 0) status = isMalta ? 'no_clocking' : 'unknown'
+    else status = isMalta ? 'wfh' : 'remote'
+
+    // Detect broken: has from but no to
+    const hasBroken = froms.length > 0 && tos.length === 0
+    if (hasBroken) status = 'active'
+
+    const firstShift = agg.shifts[0]
 
     await supabase.from('attendance_records').upsert({
       employee_id: empRow.id, date: agg.date,
-      location_in: locIn, lat_in: latIn, lng_in: lngIn, time_in: timeIn,
-      location_out: locOut, lat_out: latOut, lng_out: lngOut, time_out: timeOut,
-      hours_worked: hours, status, comments: first.label,
-      raw_data: sessions, updated_at: new Date().toISOString(),
+      location_in: firstShift?.workLocation?.name ?? null,
+      lat_in: firstShift?.workLocation?.lat ?? null,
+      lng_in: firstShift?.workLocation?.long ?? null,
+      time_in: timeIn,
+      location_out: firstShift?.workLocation?.name ?? null,
+      lat_out: firstShift?.workLocation?.lat ?? null,
+      lng_out: firstShift?.workLocation?.long ?? null,
+      time_out: hasBroken ? null : timeOut,
+      hours_worked: hasBroken ? null : totalHours,
+      status,
+      comments: hasBroken ? 'No clock-out' : null,
+      raw_data: agg.shifts,
+      updated_at: new Date().toISOString(),
     }, { onConflict: 'employee_id,date' })
     saved++
   }
@@ -218,21 +192,64 @@ async function saveClockings(logs: TimeLog[], dateFrom: string) {
   return { saved, employees: empSet.size }
 }
 
-// ── Save leave to DB ─────────────────────────────────────────────────────────
-async function saveLeave(entries: LeaveEntry[]) {
+// ── Save Leave Schedule ──────────────────────────────────────────────────────
+interface LeaveEntry { employee: { id: string; fullName: string; firstName?: string; lastName?: string }; date?: string; from?: string; to?: string; leaveTypeName?: string }
+
+async function saveLeaveSchedule(entries: LeaveEntry[], dateFrom: string, dateTo: string) {
   const supabase = createAdminClient()
   let saved = 0, updated = 0
 
-  for (const entry of entries) {
-    // Find employee by talexio_id
-    const { data: empRow } = await supabase.from('employees').select('id').eq('talexio_id', entry.employeeId).maybeSingle()
-    if (!empRow) continue
+  // Expand entries that have from/to ranges into daily records
+  const daily: { empId: string; empName: string; firstName: string; lastName: string; date: string; type: string }[] = []
+  for (const e of entries) {
+    if (!e.employee) continue
+    const typeName = (e.leaveTypeName ?? '').toLowerCase()
+    const type = typeName.includes('sick') ? 'sick' : 'vacation'
 
-    const { data: existing } = await supabase.from('attendance_records')
-      .select('id, status').eq('employee_id', empRow.id).eq('date', entry.date).maybeSingle()
+    const startStr = e.date ?? (e.from ? e.from.slice(0, 10) : null)
+    const endStr = e.to ? e.to.slice(0, 10) : startStr
+    if (!startStr) continue
+
+    const clampedStart = startStr > dateFrom ? startStr : dateFrom
+    const clampedEnd = (endStr ?? startStr) < dateTo ? (endStr ?? startStr) : dateTo
+
+    const d = new Date(clampedStart + 'T00:00:00')
+    const end = new Date(clampedEnd + 'T00:00:00')
+    while (d <= end) {
+      const dow = d.getDay()
+      if (dow >= 1 && dow <= 5) {
+        daily.push({
+          empId: e.employee.id,
+          empName: e.employee.fullName,
+          firstName: e.employee.firstName || e.employee.fullName.split(' ').slice(0, -1).join(' '),
+          lastName: e.employee.lastName || e.employee.fullName.split(' ').slice(-1)[0],
+          date: d.toISOString().slice(0, 10),
+          type,
+        })
+      }
+      d.setDate(d.getDate() + 1)
+    }
+  }
+
+  // Upsert employees first
+  const empMap = new Map<string, { firstName: string; lastName: string }>()
+  for (const entry of daily) {
+    if (!empMap.has(entry.empId)) empMap.set(entry.empId, { firstName: entry.firstName, lastName: entry.lastName })
+  }
+  const dbEmpMap = new Map<string, string>()
+  for (const [code, emp] of empMap) {
+    const { data } = await supabase.from('employees').upsert({ talexio_id: code, first_name: emp.firstName, last_name: emp.lastName }, { onConflict: 'talexio_id' }).select('id').single()
+    if (data) dbEmpMap.set(code, data.id)
+  }
+
+  // Save leave records (update existing or insert new)
+  for (const entry of daily) {
+    const empId = dbEmpMap.get(entry.empId)
+    if (!empId) continue
+
+    const { data: existing } = await supabase.from('attendance_records').select('id, status').eq('employee_id', empId).eq('date', entry.date).maybeSingle()
 
     if (existing) {
-      // Override if no_clocking/unknown, otherwise just add comment
       const shouldOverride = ['no_clocking', 'unknown'].includes(existing.status)
       await supabase.from('attendance_records').update({
         status: shouldOverride ? entry.type : existing.status,
@@ -242,14 +259,14 @@ async function saveLeave(entries: LeaveEntry[]) {
       updated++
     } else {
       await supabase.from('attendance_records').insert({
-        employee_id: empRow.id, date: entry.date, status: entry.type,
+        employee_id: empId, date: entry.date, status: entry.type,
         comments: `${entry.type === 'sick' ? 'Sick leave' : 'Vacation'} (approved)`,
         updated_at: new Date().toISOString(),
       })
       saved++
     }
   }
-  return { saved, updated }
+  return { saved, updated, expanded: daily.length }
 }
 
 // ── Main handler ─────────────────────────────────────────────────────────────
@@ -262,31 +279,53 @@ export async function POST(req: NextRequest) {
     const supabase = createAdminClient()
     const results: Record<string, unknown> = { dateRange: { from: dateFrom, to: dateTo } }
 
-    // ── 1. Fetch clockings (direct GraphQL query) ─────────────────────────
-    const direct = await fetchTimeLogs(token, dateFrom, dateTo)
-
-    if (direct.logs.length > 0) {
-      const clockResult = await saveClockings(direct.logs, dateFrom)
-      results.clockings = { method: 'direct', fetched: direct.logs.length, saved: clockResult.saved, employees: clockResult.employees }
+    // 1. Fetch work shifts
+    const shiftsResult = await fetchWorkShifts(token, dateFrom, dateTo)
+    if (shiftsResult.shifts.length > 0) {
+      const saveResult = await saveWorkShifts(shiftsResult.shifts, dateFrom)
+      results.workShifts = { fetched: shiftsResult.shifts.length, ...saveResult }
     } else {
-      results.clockings = {
-        method: 'direct', fetched: 0, saved: 0,
-        error: direct.error || 'pagedTimeLogs returned no data — the API may require payroll context. Use CSV upload instead.',
+      results.workShifts = { fetched: 0, saved: 0, error: shiftsResult.error || 'No work shifts in this period' }
+    }
+
+    // 2. Fetch leave schedule
+    const leaveResult = await fetchLeaveSchedule(token, dateFrom, dateTo)
+    if (leaveResult.entries.length > 0) {
+      const saveResult = await saveLeaveSchedule(leaveResult.entries, dateFrom, dateTo)
+      results.leave = { fetched: leaveResult.entries.length, ...saveResult }
+    } else {
+      results.leave = { fetched: 0, saved: 0, error: leaveResult.error || 'No leave in this period' }
+    }
+
+    // 3. Generate no_clocking records for Malta Office employees with no records on workdays
+    const { data: maltaEmps } = await supabase.from('employees').select('id').eq('group_type', 'office_malta').eq('excluded', false)
+    let noClockingGenerated = 0
+    if (maltaEmps && maltaEmps.length > 0) {
+      const workdays: string[] = []
+      const d = new Date(dateFrom + 'T00:00:00')
+      const end = new Date(dateTo + 'T00:00:00')
+      while (d <= end) {
+        const dow = d.getDay()
+        if (dow >= 1 && dow <= 5) workdays.push(d.toISOString().slice(0, 10))
+        d.setDate(d.getDate() + 1)
+      }
+      for (const emp of maltaEmps) {
+        for (const wd of workdays) {
+          const { data: existing } = await supabase.from('attendance_records').select('id').eq('employee_id', emp.id).eq('date', wd).maybeSingle()
+          if (!existing) {
+            await supabase.from('attendance_records').insert({
+              employee_id: emp.id, date: wd, status: 'no_clocking',
+              comments: 'No clocking record for this working day', updated_at: new Date().toISOString(),
+            })
+            noClockingGenerated++
+          }
+        }
       }
     }
+    results.noClockingGenerated = noClockingGenerated
 
-    // ── 2. Fetch leave ──────────────────────────────────────────────────────
-    const leaveResult = await fetchLeave(token, dateFrom, dateTo)
-
-    if (leaveResult.entries.length > 0) {
-      const leaveSave = await saveLeave(leaveResult.entries)
-      results.leave = { method: 'direct', fetched: leaveResult.entries.length, saved: leaveSave.saved, updated: leaveSave.updated }
-    } else {
-      results.leave = { method: 'direct', fetched: 0, error: leaveResult.error || 'No approved leave in this period' }
-    }
-
-    // ── Sync log ────────────────────────────────────────────────────────────
-    const totalSaved = ((results.clockings as Record<string, unknown>)?.saved as number ?? 0) + ((results.leave as Record<string, unknown>)?.saved as number ?? 0)
+    // Sync log
+    const totalSaved = ((results.workShifts as Record<string, unknown>)?.saved as number ?? 0) + ((results.leave as Record<string, unknown>)?.saved as number ?? 0)
     await supabase.from('sync_log').insert({ sync_date: dateFrom, source: 'talexio', records: totalSaved, status: 'success' })
 
     return NextResponse.json({ ok: true, ...results })

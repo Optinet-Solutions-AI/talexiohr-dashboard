@@ -17,11 +17,11 @@ export interface DayData {
 
 const COLORS = {
   office:      '#4f46e5', // indigo-600
-  wfh:         '#818cf8', // indigo-400
-  remote:      '#a5b4fc', // indigo-300
-  vacation:    '#c7d2fe', // indigo-200
-  no_clocking: '#ddd6fe', // violet-200
-  unknown:     '#ede9fe', // violet-100
+  wfh:         '#38bdf8', // sky-400
+  remote:      '#2dd4bf', // teal-400
+  vacation:    '#a78bfa', // violet-400
+  no_clocking: '#a1a1aa', // zinc-400
+  unknown:     '#a1a1aa', // zinc-400
 }
 
 const LABELS = {
@@ -33,7 +33,7 @@ export default function DailyAttendanceChart({ data }: { data: DayData[] }) {
   return (
     <ResponsiveContainer width="100%" height={240}>
       <BarChart data={data} margin={{ top: 4, right: 4, left: -24, bottom: 0 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+        <CartesianGrid strokeDasharray="3 3" stroke="#cbd5e1" />
         <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#475569' }} axisLine={false} tickLine={false} />
         <YAxis tick={{ fontSize: 11, fill: '#475569' }} axisLine={false} tickLine={false} allowDecimals={false} />
         <Tooltip

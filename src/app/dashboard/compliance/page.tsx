@@ -107,7 +107,7 @@ export default async function CompliancePage({ searchParams }: PageProps) {
                     <th className="px-4 py-2.5 font-medium text-slate-600 text-[10px] uppercase tracking-wider text-center">Leave</th>
                     <th className="px-4 py-2.5 font-medium text-slate-600 text-[10px] uppercase tracking-wider text-center">Mon</th>
                     <th className="px-4 py-2.5 font-medium text-slate-600 text-[10px] uppercase tracking-wider text-center">Fri</th>
-                    <th className="px-4 py-2.5 font-medium text-slate-600 text-[10px] uppercase tracking-wider">Issues</th>
+                    <th className="px-4 py-2.5 font-medium text-slate-600 text-[10px] uppercase tracking-wider">Policy Violations</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
@@ -128,11 +128,23 @@ export default async function CompliancePage({ searchParams }: PageProps) {
                       <td className="px-4 py-2.5 text-center"><span className={`font-medium ${e.monBreach ? 'text-slate-800' : 'text-slate-600'}`}>{e.wfhMon}/{MAX_WFH_MONDAYS}</span></td>
                       <td className="px-4 py-2.5 text-center"><span className={`font-medium ${e.friBreach ? 'text-slate-800' : 'text-slate-600'}`}>{e.wfhFri}/{MAX_WFH_FRIDAYS}</span></td>
                       <td className="px-4 py-2.5">
-                        {e.ok ? <span className="text-slate-500 text-[11px]">—</span> : (
-                          <div className="space-y-0.5">
-                            {e.weeklyBreaches.map((b, i) => <p key={i} className="text-[11px] text-slate-600">Wk {b.week}: {b.got}/{b.need} days</p>)}
-                            {e.monBreach && <p className="text-[11px] text-slate-600">{e.wfhMon} WFH Mon (max {MAX_WFH_MONDAYS})</p>}
-                            {e.friBreach && <p className="text-[11px] text-slate-600">{e.wfhFri} WFH Fri (max {MAX_WFH_FRIDAYS})</p>}
+                        {e.ok ? <span className="text-slate-500 text-[11px]">No issues</span> : (
+                          <div className="space-y-1">
+                            {e.weeklyBreaches.map((b, i) => (
+                              <div key={i} className="text-[11px] rounded bg-red-50 px-2 py-1 text-red-700">
+                                <span className="font-medium">Week of {b.week}:</span> Only {b.got} office day{b.got !== 1 ? 's' : ''} — needed {b.need} ({b.need - b.got} day{b.need - b.got !== 1 ? 's' : ''} short)
+                              </div>
+                            ))}
+                            {e.monBreach && (
+                              <div className="text-[11px] rounded bg-amber-50 px-2 py-1 text-amber-700">
+                                <span className="font-medium">WFH Monday limit:</span> {e.wfhMon} used (max {MAX_WFH_MONDAYS} per month)
+                              </div>
+                            )}
+                            {e.friBreach && (
+                              <div className="text-[11px] rounded bg-amber-50 px-2 py-1 text-amber-700">
+                                <span className="font-medium">WFH Friday limit:</span> {e.wfhFri} used (max {MAX_WFH_FRIDAYS} per month)
+                              </div>
+                            )}
                           </div>
                         )}
                       </td>
@@ -158,10 +170,14 @@ export default async function CompliancePage({ searchParams }: PageProps) {
                     <span>Fri: {e.wfhFri}/{MAX_WFH_FRIDAYS}</span>
                   </div>
                   {!e.ok && (
-                    <div className="text-[11px] text-slate-500">
-                      {e.weeklyBreaches.map((b, i) => <span key={i} className="mr-2">Wk {b.week}: {b.got}/{b.need}</span>)}
-                      {e.monBreach && <span className="mr-2">{e.wfhMon} WFH Mon</span>}
-                      {e.friBreach && <span>{e.wfhFri} WFH Fri</span>}
+                    <div className="space-y-1">
+                      {e.weeklyBreaches.map((b, i) => (
+                        <p key={i} className="text-[11px] rounded bg-red-50 px-2 py-1 text-red-700">
+                          Wk {b.week}: {b.got}/{b.need} office days ({b.need - b.got} short)
+                        </p>
+                      ))}
+                      {e.monBreach && <p className="text-[11px] rounded bg-amber-50 px-2 py-1 text-amber-700">WFH Mon: {e.wfhMon} used (max {MAX_WFH_MONDAYS})</p>}
+                      {e.friBreach && <p className="text-[11px] rounded bg-amber-50 px-2 py-1 text-amber-700">WFH Fri: {e.wfhFri} used (max {MAX_WFH_FRIDAYS})</p>}
                     </div>
                   )}
                 </div>

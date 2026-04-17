@@ -1,32 +1,35 @@
 import ImportUpload from '@/components/import/ImportUpload'
 import TalexioPull from '@/components/import/TalexioPull'
+import Reclassify from '@/components/import/Reclassify'
 
 export default function ImportPage() {
   return (
     <div className="space-y-5 max-w-3xl mx-auto">
       <div>
         <h1 className="text-xl font-bold text-slate-800">Import Data</h1>
-        <p className="text-xs text-slate-600 mt-0.5">Upload CSV files from Talexio reports</p>
+        <p className="text-xs text-slate-600 mt-0.5">Upload CSV/XLSX files from Talexio reports</p>
       </div>
 
       <ImportUpload
         type="clockings"
         title="Clockings / Timesheet"
-        description="Upload the Talexio Clockings CSV export. Multiple sessions per employee per day are aggregated automatically."
+        description="Upload the Talexio Clockings export (.csv or .xlsx). Multiple sessions per employee per day are aggregated automatically. Malta Office employees not at office → WFH."
       />
 
       <ImportUpload
         type="leave"
         title="Leave & Sick"
-        description="Upload the Talexio Leave/Sick CSV export. Only approved entries are imported."
+        description="Upload the Talexio Leave/Sick export (.csv or .xlsx). Only approved entries are imported."
       />
 
       <div className="relative">
         <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-200" /></div>
         <div className="relative flex justify-center">
-          <span className="bg-slate-50 px-3 text-xs text-slate-500">or pull directly from API</span>
+          <span className="bg-slate-50 px-3 text-xs text-slate-600">Tools</span>
         </div>
       </div>
+
+      <Reclassify />
 
       <TalexioPull />
     </div>
