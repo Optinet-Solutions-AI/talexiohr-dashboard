@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
         query: `query TestWorkShifts($params: WorkShiftsFilterParams!, $pageNumber: Int!, $pageSize: Int!) {
           pagedWorkShifts(params: $params, pageNumber: $pageNumber, pageSize: $pageSize) {
             totalCount
-            workShifts { id date from to employee { id fullName } workLocation { name } timeLogs { id from to workLocationIn { name } } }
+            workShifts { id date from to employee { id fullName } workLocation { name long lat } }
           }
         }`,
         variables: { params: { dateFrom: date, dateTo: date, employeeIds: [] }, pageNumber: 1, pageSize: 3 },

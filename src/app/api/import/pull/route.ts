@@ -53,12 +53,6 @@ async function fetchWorkShifts(token: string, dateFrom: string, dateTo: string) 
             to
             employee { id fullName firstName lastName }
             workLocation { id name long lat }
-            timeLogs {
-              id from to
-              locationLatIn locationLongIn locationLatOut locationLongOut
-              workLocationIn { id name long lat }
-              workLocationOut { id name }
-            }
           }
         }
       }`,
@@ -147,54 +141,44 @@ async function saveWorkShifts(shifts: any[], dateFrom: string) {
 
     const isMalta = empRow.group_type === 'office_malta'
 
-    // Collect all time logs across all shifts for this day
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const allLogs: any[] = agg.shifts.flatMap(s => s.timeLogs ?? [])
-
-    // Check if any log is at the office
-    const atOffice = allLogs.some(log =>
-      isOfficeName(log.workLocationIn?.name) ||
-      isOfficeGps(log.locationLatIn, log.locationLongIn) ||
-      isOfficeGps(log.workLocationIn?.lat, log.workLocationIn?.long)
+    // Check if any shift is at the office
+    const shiftAtOffice = agg.shifts.some(s =>
+      isOfficeName(s.workLocation?.name) ||
+      isOfficeGps(s.workLocation?.lat, s.workLocation?.long)
     )
-    // Also check the shift's work location (planned)
-    const shiftAtOffice = agg.shifts.some(s => isOfficeName(s.workLocation?.name))
+
+    // Aggregate from/to across shifts (earliest start, latest end)
+    const froms = agg.shifts.filter(s => s.from).map(s => new Date(s.from).getTime())
+    const tos = agg.shifts.filter(s => s.to).map(s => new Date(s.to).getTime())
+    const timeIn = froms.length ? new Date(Math.min(...froms)).toISOString().slice(11, 19) : null
+    const timeOut = tos.length ? new Date(Math.max(...tos)).toISOString().slice(11, 19) : null
+
+    let totalHours: number | null = null
+    if (froms.length && tos.length) {
+      totalHours = Math.round(((Math.max(...tos) - Math.min(...froms)) / 3_600_000) * 100) / 100
+    }
 
     // Status classification
     let status: string
-    if (atOffice || shiftAtOffice) status = 'office'
-    else if (allLogs.length === 0) status = isMalta ? 'no_clocking' : 'unknown'
+    if (shiftAtOffice) status = 'office'
+    else if (agg.shifts.length === 0) status = isMalta ? 'no_clocking' : 'unknown'
     else status = isMalta ? 'wfh' : 'remote'
 
-    // Aggregate time in/out
-    const ins = allLogs.filter(l => l.from).map(l => new Date(l.from).getTime())
-    const outs = allLogs.filter(l => l.to).map(l => new Date(l.to).getTime())
-    const timeIn = ins.length ? new Date(Math.min(...ins)).toISOString().slice(11, 19) : null
-    const timeOut = outs.length ? new Date(Math.max(...outs)).toISOString().slice(11, 19) : null
+    // Detect broken: has from but no to
+    const hasBroken = froms.length > 0 && tos.length === 0
+    if (hasBroken) status = 'active'
 
-    // Compute hours from earliest in → latest out
-    let totalHours: number | null = null
-    if (ins.length && outs.length) {
-      totalHours = Math.round(((Math.max(...outs) - Math.min(...ins)) / 3_600_000) * 100) / 100
-    }
-
-    // Detect broken: has time_in but no time_out
-    const hasBroken = ins.length > 0 && outs.length === 0
-    if (hasBroken) status = 'active' // unresolved clocking
-
-    const firstLog = allLogs[0]
-    const locIn = firstLog?.workLocationIn?.name ?? agg.shifts[0]?.workLocation?.name ?? null
-    const locOut = firstLog?.workLocationOut?.name ?? null
+    const firstShift = agg.shifts[0]
 
     await supabase.from('attendance_records').upsert({
       employee_id: empRow.id, date: agg.date,
-      location_in: locIn,
-      lat_in: firstLog?.locationLatIn ?? firstLog?.workLocationIn?.lat ?? null,
-      lng_in: firstLog?.locationLongIn ?? firstLog?.workLocationIn?.long ?? null,
-      time_in: hasBroken ? timeIn : timeIn, // keep time_in for active clockings
-      location_out: locOut,
-      lat_out: firstLog?.locationLatOut ?? null,
-      lng_out: firstLog?.locationLongOut ?? null,
+      location_in: firstShift?.workLocation?.name ?? null,
+      lat_in: firstShift?.workLocation?.lat ?? null,
+      lng_in: firstShift?.workLocation?.long ?? null,
+      time_in: timeIn,
+      location_out: firstShift?.workLocation?.name ?? null,
+      lat_out: firstShift?.workLocation?.lat ?? null,
+      lng_out: firstShift?.workLocation?.long ?? null,
       time_out: hasBroken ? null : timeOut,
       hours_worked: hasBroken ? null : totalHours,
       status,
