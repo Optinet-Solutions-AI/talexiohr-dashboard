@@ -71,10 +71,9 @@ export default function AttendanceGrid({ employees, dates }: { employees: GridEm
             <tr>
               {dates.map(d => {
                 const dt = new Date(d + 'T00:00:00')
-                const isWeekend = dt.getDay() === 0 || dt.getDay() === 6
                 const isColHover = hoverCol === d
                 return (
-                  <th key={d} className={`px-0 py-1 text-center min-w-[24px] w-[24px] transition-colors ${isWeekend ? 'opacity-40' : ''} ${isColHover ? 'bg-indigo-50' : ''}`}>
+                  <th key={d} className={`px-0 py-1 text-center min-w-[24px] w-[24px] transition-colors ${isColHover ? 'bg-indigo-50' : ''}`}>
                     <span className={`block text-[9px] font-medium leading-tight ${isColHover ? 'text-indigo-600' : 'text-slate-600'}`}>
                       {dt.toLocaleDateString('en-GB', { weekday: 'narrow' })}
                     </span>
@@ -98,15 +97,13 @@ export default function AttendanceGrid({ employees, dates }: { employees: GridEm
                     const day = emp.days.find(d => d.date === date)
                     const s = day?.status ?? 'unknown'
                     const config = STATUS_CONFIG[s] ?? STATUS_CONFIG.unknown
-                    const dt = new Date(date + 'T00:00:00')
-                    const isWeekend = dt.getDay() === 0 || dt.getDay() === 6
                     const hasFlag = day?.flags && day.flags.length > 0
                     const isCross = isRowHover || hoverCol === date
 
                     return (
                       <td
                         key={date}
-                        className={`px-0 py-1 text-center transition-colors ${isWeekend && !isCross ? 'opacity-40' : ''} ${isCross ? 'bg-indigo-50/50' : ''}`}
+                        className={`px-0 py-1 text-center transition-colors ${isCross ? 'bg-indigo-50/50' : ''}`}
                         onMouseEnter={() => { setHoverRow(emp.name); setHoverCol(date) }}
                         onMouseLeave={() => { setHoverRow(null); setHoverCol(null) }}
                       >
