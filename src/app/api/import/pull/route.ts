@@ -70,7 +70,7 @@ async function fetchTimeLogs(token: string, dateFrom: string, dateTo: string): P
           }
         }
       }`,
-      { params: { dateFrom, dateTo, employeeIds: [] }, pageNumber: page, pageSize: PAGE_SIZE }
+      { params: { dateFrom, dateTo }, pageNumber: page, pageSize: PAGE_SIZE }
     )
     const json = await res.json()
     if (json.errors?.length) return { logs: [], error: json.errors.map((e: { message: string }) => e.message).join(', '), debug: { status: res.status, json } }

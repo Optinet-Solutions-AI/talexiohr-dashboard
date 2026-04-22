@@ -38,7 +38,7 @@ export async function GET(req: NextRequest) {
           }
         }
       }`,
-      { params: { dateFrom: date, dateTo: date, employeeIds: [] }, pageNumber: 1, pageSize: 5 }
+      { params: { dateFrom: date, dateTo: date }, pageNumber: 1, pageSize: 5 }
     )
     const clocks = await clocksRes.json()
 
@@ -63,7 +63,12 @@ export async function GET(req: NextRequest) {
         ok: !clocks.errors?.length,
         errors: clocks.errors ?? null,
         totalCount: clocks.data?.pagedTimeLogs?.totalCount ?? null,
-        sample: clocks.data?.pagedTimeLogs?.timeLogs?.slice(0, 3) ?? [],
+        uniqueEmployees: [...new Set((clocks.data?.pagedTimeLogs?.timeLogs ?? []).map((l: { employee?: { id: string } }) => l.employee?.id).filter(Boolean))].length,
+        sample: clocks.data?.pagedTimeLogs?.timeLogs?.slice(0, 5).map((l: { from: string; employee?: { fullName: string }; workLocationIn?: { name: string } }) => ({
+          name: l.employee?.fullName,
+          location: l.workLocationIn?.name,
+          from: l.from,
+        })) ?? [],
       },
       leave: {
         ok: !leave.errors?.length,
