@@ -152,19 +152,29 @@ async function saveClockings(logs: TimeLog[]) {
   let saved = 0
   const empSet = new Set<string>()
 
+  // Preload all employees for fuzzy name matching (accent/case/whitespace insensitive)
+  const { data: allEmps } = await supabase.from('employees').select('id, first_name, last_name, full_name, talexio_id, group_type')
+  const normalize = (s: string) => (s ?? '').toLowerCase().replace(/\s+/g, ' ').trim().normalize('NFD').replace(/[̀-ͯ]/g, '')
+  const byIdMap = new Map<string, { id: string; group_type: string | null; talexio_id: string | null }>()
+  const byNameMap = new Map<string, { id: string; group_type: string | null; talexio_id: string | null }>()
+  for (const e of allEmps ?? []) {
+    if (e.talexio_id) byIdMap.set(e.talexio_id, { id: e.id, group_type: e.group_type, talexio_id: e.talexio_id })
+    const key = normalize(e.full_name ?? `${e.first_name} ${e.last_name}`)
+    if (key) byNameMap.set(key, { id: e.id, group_type: e.group_type, talexio_id: e.talexio_id })
+  }
+
   for (const [, agg] of grouped) {
-    // Prevent duplicates: first try to find existing employee by talexio_id, then by name
     let empRow: { id: string; group_type: string | null } | null = null
 
-    const { data: byId } = await supabase.from('employees')
-      .select('id, group_type').eq('talexio_id', agg.empId).maybeSingle()
-    if (byId) empRow = byId
+    // 1. Match by talexio_id
+    const byId = byIdMap.get(agg.empId)
+    if (byId) empRow = { id: byId.id, group_type: byId.group_type }
 
+    // 2. Match by normalized full name
     if (!empRow) {
-      const { data: byName } = await supabase.from('employees')
-        .select('id, group_type, talexio_id').eq('first_name', agg.firstName).eq('last_name', agg.lastName).maybeSingle()
+      const nameKey = normalize(`${agg.firstName} ${agg.lastName}`)
+      const byName = byNameMap.get(nameKey)
       if (byName) {
-        // Found by name — update with talexio_id if missing
         if (!byName.talexio_id) {
           await supabase.from('employees').update({ talexio_id: agg.empId }).eq('id', byName.id)
         }
@@ -172,9 +182,10 @@ async function saveClockings(logs: TimeLog[]) {
       }
     }
 
+    // 3. Create new if no match
     if (!empRow) {
       const { data: newEmp } = await supabase.from('employees')
-        .insert({ talexio_id: agg.empId, first_name: agg.firstName, last_name: agg.lastName })
+        .insert({ talexio_id: agg.empId, first_name: agg.firstName.trim(), last_name: agg.lastName.trim() })
         .select('id, group_type').single()
       empRow = newEmp
     }
@@ -276,21 +287,32 @@ async function saveLeave(
     }
   }
 
-  // Find/create employees — match by talexio_id first, then name (prevents duplicates)
+  // Find/create employees — match by talexio_id first, then by normalized name
+  const { data: all } = await supabase.from('employees').select('id, first_name, last_name, full_name, talexio_id')
+  const normalize = (s: string) => (s ?? '').toLowerCase().replace(/\s+/g, ' ').trim().normalize('NFD').replace(/[̀-ͯ]/g, '')
+  const idMap = new Map<string, string>()
+  const nameMap = new Map<string, { id: string; talexio_id: string | null }>()
+  for (const e of all ?? []) {
+    if (e.talexio_id) idMap.set(e.talexio_id, e.id)
+    const key = normalize(e.full_name ?? `${e.first_name} ${e.last_name}`)
+    if (key) nameMap.set(key, { id: e.id, talexio_id: e.talexio_id })
+  }
+
   const dbEmpMap = new Map<string, string>()
   for (const entry of daily) {
     if (dbEmpMap.has(entry.empId)) continue
 
-    const { data: byId } = await supabase.from('employees').select('id').eq('talexio_id', entry.empId).maybeSingle()
-    if (byId) { dbEmpMap.set(entry.empId, byId.id); continue }
+    const byId = idMap.get(entry.empId)
+    if (byId) { dbEmpMap.set(entry.empId, byId); continue }
 
-    const { data: byName } = await supabase.from('employees').select('id, talexio_id').eq('first_name', entry.firstName).eq('last_name', entry.lastName).maybeSingle()
+    const byName = nameMap.get(normalize(`${entry.firstName} ${entry.lastName}`))
     if (byName) {
       if (!byName.talexio_id) await supabase.from('employees').update({ talexio_id: entry.empId }).eq('id', byName.id)
-      dbEmpMap.set(entry.empId, byName.id); continue
+      dbEmpMap.set(entry.empId, byName.id)
+      continue
     }
 
-    const { data: newEmp } = await supabase.from('employees').insert({ talexio_id: entry.empId, first_name: entry.firstName, last_name: entry.lastName }).select('id').single()
+    const { data: newEmp } = await supabase.from('employees').insert({ talexio_id: entry.empId, first_name: entry.firstName.trim(), last_name: entry.lastName.trim() }).select('id').single()
     if (newEmp) dbEmpMap.set(entry.empId, newEmp.id)
   }
 

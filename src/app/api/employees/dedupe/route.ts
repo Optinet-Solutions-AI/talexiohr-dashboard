@@ -1,45 +1,103 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 
+export const dynamic = 'force-dynamic'
+export const maxDuration = 300
+
 /**
- * Merges duplicate employees by full_name.
- * When duplicates are found: keeps the one WITH talexio_id (or oldest if tie),
- * reassigns all attendance_records to the keeper, deletes the rest.
+ * Merges duplicate employees (matched by normalized full_name).
+ *
+ * Keeper priority (highest wins):
+ *   1. has user-configured group_type (office_malta or remote)
+ *   2. excluded = true (user explicitly excluded)
+ *   3. has unit/job_schedule/position set (user added metadata)
+ *   4. oldest created_at
+ *
+ * For each duplicate:
+ *   - Move attendance_records to keeper (dedupe by date)
+ *   - If keeper has no talexio_id, copy it from the dupe
+ *   - If keeper's group_type is unclassified and dupe has a set one, copy it
+ *   - Delete the dupe
  */
 export async function POST() {
   const supabase = createAdminClient()
 
   const { data: employees, error } = await supabase
     .from('employees')
-    .select('id, first_name, last_name, full_name, talexio_id, created_at')
+    .select('id, first_name, last_name, full_name, talexio_id, group_type, excluded, unit, job_schedule, position, created_at')
     .order('created_at', { ascending: true })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  // Group by lowercase full_name
-  const byName = new Map<string, typeof employees>()
+  const normalize = (s: string) => (s ?? '').toLowerCase().replace(/\s+/g, ' ').trim().normalize('NFD').replace(/[̀-ͯ]/g, '')
+
+  type Emp = NonNullable<typeof employees>[number]
+  const byName = new Map<string, Emp[]>()
   for (const emp of employees ?? []) {
-    const key = (emp.full_name ?? '').toLowerCase().trim()
+    const key = normalize(emp.full_name ?? `${emp.first_name} ${emp.last_name}`)
     if (!key) continue
     if (!byName.has(key)) byName.set(key, [])
     byName.get(key)!.push(emp)
   }
 
+  function score(e: Emp): number {
+    let s = 0
+    if (e.group_type && e.group_type !== 'unclassified') s += 100
+    if (e.excluded) s += 80
+    if (e.unit) s += 10
+    if (e.job_schedule) s += 10
+    if (e.position) s += 10
+    return s
+  }
+
   let merged = 0, deleted = 0, recordsReassigned = 0
+  const details: { name: string; keeper: string; removed: string[] }[] = []
 
   for (const [, group] of byName) {
     if (group.length < 2) continue
 
-    // Keeper: prefer one with talexio_id, else oldest
+    // Sort by score desc, then oldest first
     group.sort((a, b) => {
-      if (a.talexio_id && !b.talexio_id) return -1
-      if (!a.talexio_id && b.talexio_id) return 1
-      return a.created_at < b.created_at ? -1 : 1
+      const diff = score(b) - score(a)
+      if (diff !== 0) return diff
+      return (a.created_at ?? '') < (b.created_at ?? '') ? -1 : 1
     })
+
     const keeper = group[0]
     const dupes = group.slice(1)
 
-    // Reassign attendance records from dupes to keeper
+    // Copy missing fields from dupes to keeper if keeper doesn't have them
+    const patch: Record<string, unknown> = {}
+    if (!keeper.talexio_id) {
+      const dupeWithId = dupes.find(d => d.talexio_id)
+      if (dupeWithId) patch.talexio_id = dupeWithId.talexio_id
+    }
+    if (!keeper.unit) {
+      const d = dupes.find(d => d.unit)
+      if (d) patch.unit = d.unit
+    }
+    if (!keeper.job_schedule) {
+      const d = dupes.find(d => d.job_schedule)
+      if (d) patch.job_schedule = d.job_schedule
+    }
+    if (!keeper.position) {
+      const d = dupes.find(d => d.position)
+      if (d) patch.position = d.position
+    }
+
+    // Before deleting dupes, null out their talexio_id to avoid the unique
+    // constraint when we copy it to the keeper
+    for (const dupe of dupes) {
+      if (dupe.talexio_id) {
+        await supabase.from('employees').update({ talexio_id: null }).eq('id', dupe.id)
+      }
+    }
+
+    if (Object.keys(patch).length > 0) {
+      await supabase.from('employees').update(patch).eq('id', keeper.id)
+    }
+
+    // Migrate attendance_records from dupes to keeper
     for (const dupe of dupes) {
       const { data: recs } = await supabase
         .from('attendance_records')
@@ -47,7 +105,6 @@ export async function POST() {
         .eq('employee_id', dupe.id)
 
       for (const rec of recs ?? []) {
-        // Check if keeper already has a record for this date
         const { data: existing } = await supabase
           .from('attendance_records')
           .select('id')
@@ -56,21 +113,24 @@ export async function POST() {
           .maybeSingle()
 
         if (existing) {
-          // Keeper has record — delete the dupe's
           await supabase.from('attendance_records').delete().eq('id', rec.id)
         } else {
-          // Reassign to keeper
           await supabase.from('attendance_records').update({ employee_id: keeper.id }).eq('id', rec.id)
           recordsReassigned++
         }
       }
 
-      // Delete the duplicate employee
       await supabase.from('employees').delete().eq('id', dupe.id)
       deleted++
     }
+
     merged++
+    details.push({
+      name: keeper.full_name,
+      keeper: keeper.id,
+      removed: dupes.map(d => d.id),
+    })
   }
 
-  return NextResponse.json({ ok: true, merged, deleted, recordsReassigned })
+  return NextResponse.json({ ok: true, merged, deleted, recordsReassigned, details: details.slice(0, 30) })
 }
