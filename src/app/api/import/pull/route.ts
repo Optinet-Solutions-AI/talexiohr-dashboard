@@ -50,7 +50,7 @@ interface TimeLog {
 }
 
 // ── Fetch Time Logs (clockings) ──────────────────────────────────────────────
-async function fetchTimeLogs(token: string, dateFrom: string, dateTo: string): Promise<{ logs: TimeLog[]; error?: string }> {
+async function fetchTimeLogs(token: string, dateFrom: string, dateTo: string): Promise<{ logs: TimeLog[]; error?: string; debug?: unknown }> {
   const PAGE_SIZE = 100
   let page = 1
   const all: TimeLog[] = []
@@ -73,8 +73,9 @@ async function fetchTimeLogs(token: string, dateFrom: string, dateTo: string): P
       { params: { dateFrom, dateTo, employeeIds: [] }, pageNumber: page, pageSize: PAGE_SIZE }
     )
     const json = await res.json()
-    if (json.errors?.length) return { logs: [], error: json.errors.map((e: { message: string }) => e.message).join(', ') }
-    if (!json.data?.pagedTimeLogs) return { logs: [], error: 'No data' }
+    if (json.errors?.length) return { logs: [], error: json.errors.map((e: { message: string }) => e.message).join(', '), debug: { status: res.status, json } }
+    if (!json.data) return { logs: [], error: `No data field in response (status ${res.status})`, debug: json }
+    if (!json.data.pagedTimeLogs) return { logs: [], error: 'pagedTimeLogs is null', debug: json }
 
     const batch = json.data.pagedTimeLogs.timeLogs ?? []
     all.push(...batch)
@@ -94,7 +95,7 @@ interface LeaveEntry {
   leaveTypeName: string
 }
 
-async function fetchLeave(token: string): Promise<{ employees: { id: string; fullName: string; firstName?: string; lastName?: string; leave: LeaveEntry[] }[]; error?: string }> {
+async function fetchLeave(token: string): Promise<{ employees: { id: string; fullName: string; firstName?: string; lastName?: string; leave: LeaveEntry[] }[]; error?: string; debug?: unknown }> {
   const res = await gqlFetch(token,
     `query PullLeave {
       employees {
@@ -109,7 +110,8 @@ async function fetchLeave(token: string): Promise<{ employees: { id: string; ful
     {}
   )
   const json = await res.json()
-  if (json.errors?.length) return { employees: [], error: json.errors.map((e: { message: string }) => e.message).join(', ') }
+  if (json.errors?.length) return { employees: [], error: json.errors.map((e: { message: string }) => e.message).join(', '), debug: json }
+  if (!json.data) return { employees: [], error: `No data field (status ${res.status})`, debug: json }
   return { employees: json.data?.employees ?? [] }
 }
 
@@ -294,16 +296,16 @@ export async function POST(req: NextRequest) {
       const saveResult = await saveClockings(clocks.logs)
       results.clockings = { fetched: clocks.logs.length, ...saveResult }
     } else {
-      results.clockings = { fetched: 0, saved: 0, error: clocks.error || 'No clockings in this period' }
+      results.clockings = { fetched: 0, saved: 0, error: clocks.error || 'No clockings in this period', debug: clocks.debug }
     }
 
     // 2. Fetch + save leave
     const leave = await fetchLeave(token)
     if (leave.employees.length > 0) {
       const saveResult = await saveLeave(leave.employees, dateFrom, dateTo)
-      results.leave = saveResult
+      results.leave = { ...saveResult, totalEmployees: leave.employees.length }
     } else {
-      results.leave = { saved: 0, updated: 0, error: leave.error || 'No leave data returned' }
+      results.leave = { saved: 0, updated: 0, error: leave.error || 'No leave data returned', debug: leave.debug }
     }
 
     // 3. Generate no_clocking records for Malta Office employees on workdays with no records
