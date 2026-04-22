@@ -25,57 +25,51 @@ export async function GET(req: NextRequest) {
   if (!token) return NextResponse.json({ error: 'Token is required' }, { status: 400 })
 
   try {
-    // Probe 1: minimal query with just id/totalCount to test access
-    const probe1 = await gqlFetch(token,
-      `query Probe1($params: TimeLogsFilterParams!, $pageNumber: Int!, $pageSize: Int!) {
-        pagedTimeLogs(params: $params, pageNumber: $pageNumber, pageSize: $pageSize) {
-          totalCount
-          timeLogs { id }
-        }
-      }`,
-      { params: { dateFrom: date, dateTo: date, employeeIds: [] }, pageNumber: 1, pageSize: 3 }
-    )
-    const p1 = await probe1.json()
-
-    // Probe 2: common field names — errors will reveal the real ones
-    const probe2 = await gqlFetch(token,
-      `query Probe2($params: TimeLogsFilterParams!, $pageNumber: Int!, $pageSize: Int!) {
+    // Test pagedTimeLogs
+    const clocksRes = await gqlFetch(token,
+      `query TestTimeLogs($params: TimeLogsFilterParams!, $pageNumber: Int!, $pageSize: Int!) {
         pagedTimeLogs(params: $params, pageNumber: $pageNumber, pageSize: $pageSize) {
           totalCount
           timeLogs {
-            id
-            date
-            from
-            to
-            timeIn
-            timeOut
-            locationLatIn
-            locationLongIn
-            locationLatOut
-            locationLongOut
-            label
-            employee { id fullName firstName lastName }
-            workLocationIn { id name long lat }
-            workLocationOut { id name long lat }
+            id from to label
+            locationLatIn locationLongIn
+            employee { id fullName }
+            workLocationIn { name }
           }
         }
       }`,
-      { params: { dateFrom: date, dateTo: date, employeeIds: [] }, pageNumber: 1, pageSize: 3 }
+      { params: { dateFrom: date, dateTo: date, employeeIds: [] }, pageNumber: 1, pageSize: 5 }
     )
-    const p2 = await probe2.json()
+    const clocks = await clocksRes.json()
+
+    // Test leave
+    const leaveRes = await gqlFetch(token,
+      `query TestLeave {
+        employees {
+          id fullName
+          leave {
+            ... on EmployeeLeave {
+              id date from to hours leaveTypeName
+            }
+          }
+        }
+      }`,
+      {}
+    )
+    const leave = await leaveRes.json()
 
     return NextResponse.json({
-      probe1_minimal: {
-        ok: !p1.errors?.length,
-        errors: p1.errors ?? null,
-        totalCount: p1.data?.pagedTimeLogs?.totalCount ?? null,
-        sample: p1.data?.pagedTimeLogs?.timeLogs ?? [],
+      clockings: {
+        ok: !clocks.errors?.length,
+        errors: clocks.errors ?? null,
+        totalCount: clocks.data?.pagedTimeLogs?.totalCount ?? null,
+        sample: clocks.data?.pagedTimeLogs?.timeLogs?.slice(0, 3) ?? [],
       },
-      probe2_full_fields: {
-        ok: !p2.errors?.length,
-        errors: p2.errors ?? null,
-        totalCount: p2.data?.pagedTimeLogs?.totalCount ?? null,
-        sample: p2.data?.pagedTimeLogs?.timeLogs?.slice(0, 2) ?? [],
+      leave: {
+        ok: !leave.errors?.length,
+        errors: leave.errors ?? null,
+        totalEmployees: leave.data?.employees?.length ?? null,
+        employeesWithLeave: leave.data?.employees?.filter((e: { leave?: unknown[] }) => (e.leave?.length ?? 0) > 0).length ?? null,
       },
       tokenExpiry: (() => { try { return JSON.parse(atob(token.split('.')[1])).expiryDate } catch { return null } })(),
     })
