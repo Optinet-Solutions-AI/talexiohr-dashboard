@@ -2,6 +2,7 @@ import ImportUpload from '@/components/import/ImportUpload'
 import TalexioPull from '@/components/import/TalexioPull'
 import Reclassify from '@/components/import/Reclassify'
 import Dedupe from '@/components/import/Dedupe'
+import Cleanup from '@/components/import/Cleanup'
 
 export default function ImportPage() {
   return (
@@ -35,6 +36,8 @@ export default function ImportPage() {
       <Reclassify />
 
       <TalexioPull />
+
+      <Cleanup />
     </div>
   )
 }
