@@ -1,8 +1,8 @@
 {
   "crons": [
     {
-      "path": "/api/attendance/sync",
-      "schedule": "59 21 * * *"
+      "path": "/api/attendance/daily-sync",
+      "schedule": "0 23 * * *"
     }
   ],
   "functions": {
@@ -10,6 +10,9 @@
       "maxDuration": 300
     },
     "src/app/api/employees/dedupe/route.ts": {
+      "maxDuration": 300
+    },
+    "src/app/api/attendance/daily-sync/route.ts": {
       "maxDuration": 300
     }
   }

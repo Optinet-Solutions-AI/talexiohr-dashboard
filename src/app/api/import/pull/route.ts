@@ -20,16 +20,27 @@ function isOfficeName(n: string | null) {
   return l.includes('head office') || l === 'office' || l.includes('ta office')
 }
 
-function gqlFetch(token: string, query: string, variables: Record<string, unknown>) {
+/**
+ * Talexio GraphQL call. If token is provided, uses Bearer auth (session JWT);
+ * otherwise uses the persistent API token from env vars.
+ */
+function gqlFetch(token: string | null, query: string, variables: Record<string, unknown>) {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    'client-domain': DOMAIN,
+    'apollographql-client-name': 'talexio-hr-frontend',
+    'apollographql-client-version': '1.0',
+  }
+  if (token) {
+    headers['authorization'] = `Bearer ${token}`
+  } else {
+    const apiToken = process.env.NEXT_PUBLIC_TALEXIOHR_TOKEN
+    if (!apiToken) throw new Error('No Bearer token provided and NEXT_PUBLIC_TALEXIOHR_TOKEN is not set')
+    headers['talexio-api-token'] = apiToken
+  }
   return fetch(GQL_URL, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'authorization': `Bearer ${token}`,
-      'client-domain': DOMAIN,
-      'apollographql-client-name': 'talexio-hr-frontend',
-      'apollographql-client-version': '1.0',
-    },
+    headers,
     body: JSON.stringify({ query, variables }),
     cache: 'no-store' as const,
   })
@@ -50,7 +61,7 @@ interface TimeLog {
 }
 
 // ── Fetch Time Logs (clockings) ──────────────────────────────────────────────
-async function fetchTimeLogs(token: string, dateFrom: string, dateTo: string): Promise<{ logs: TimeLog[]; error?: string; debug?: unknown }> {
+async function fetchTimeLogs(token: string | null, dateFrom: string, dateTo: string): Promise<{ logs: TimeLog[]; error?: string; debug?: unknown }> {
   const PAGE_SIZE = 100
   let page = 1
   const all: TimeLog[] = []
@@ -95,7 +106,7 @@ interface LeaveEntry {
   leaveTypeName: string
 }
 
-async function fetchLeave(token: string): Promise<{ employees: { id: string; fullName: string; firstName?: string; lastName?: string; leave: LeaveEntry[] }[]; error?: string; debug?: unknown }> {
+async function fetchLeave(token: string | null): Promise<{ employees: { id: string; fullName: string; firstName?: string; lastName?: string; leave: LeaveEntry[] }[]; error?: string; debug?: unknown }> {
   const res = await gqlFetch(token,
     `query PullLeave {
       employees {
@@ -314,9 +325,9 @@ async function saveLeave(
 // ── Main handler ─────────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
   try {
-    const { dateFrom, dateTo, token } = await req.json()
+    const { dateFrom, dateTo, token: rawToken } = await req.json()
+    const token: string | null = rawToken?.trim() || null
     if (!dateFrom || !dateTo) return NextResponse.json({ error: 'dateFrom and dateTo required' }, { status: 400 })
-    if (!token) return NextResponse.json({ error: 'Bearer token is required' }, { status: 400 })
 
     // Enforce max 14 days per pull to avoid timeouts
     const dayDiff = (new Date(dateTo).getTime() - new Date(dateFrom).getTime()) / 86_400_000
