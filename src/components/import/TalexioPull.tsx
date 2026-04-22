@@ -67,7 +67,7 @@ export default function TalexioPull() {
       <div className="px-4 py-3 border-b border-slate-100">
         <h2 className="text-sm font-semibold text-slate-800">Pull from Talexio API</h2>
         <p className="text-xs text-slate-500 mt-0.5">
-          Paste your Bearer token from Talexio, pick a date range, and pull clockings directly. Token lasts ~2 hours.
+          Paste your Bearer token from Talexio, pick a date range (max 14 days), and pull clockings directly. For longer ranges, pull in weekly chunks. Token lasts ~2 hours.
         </p>
       </div>
 

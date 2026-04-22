@@ -1,6 +1,7 @@
 import ImportUpload from '@/components/import/ImportUpload'
 import TalexioPull from '@/components/import/TalexioPull'
 import Reclassify from '@/components/import/Reclassify'
+import Dedupe from '@/components/import/Dedupe'
 
 export default function ImportPage() {
   return (
@@ -28,6 +29,8 @@ export default function ImportPage() {
           <span className="bg-slate-50 px-3 text-xs text-slate-600">Tools</span>
         </div>
       </div>
+
+      <Dedupe />
 
       <Reclassify />
 

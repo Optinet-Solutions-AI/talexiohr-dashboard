@@ -142,9 +142,32 @@ async function saveClockings(logs: TimeLog[]) {
   const empSet = new Set<string>()
 
   for (const [, agg] of grouped) {
-    const { data: empRow } = await supabase.from('employees')
-      .upsert({ talexio_id: agg.empId, first_name: agg.firstName, last_name: agg.lastName }, { onConflict: 'talexio_id' })
-      .select('id, group_type').single()
+    // Prevent duplicates: first try to find existing employee by talexio_id, then by name
+    let empRow: { id: string; group_type: string | null } | null = null
+
+    const { data: byId } = await supabase.from('employees')
+      .select('id, group_type').eq('talexio_id', agg.empId).maybeSingle()
+    if (byId) empRow = byId
+
+    if (!empRow) {
+      const { data: byName } = await supabase.from('employees')
+        .select('id, group_type, talexio_id').eq('first_name', agg.firstName).eq('last_name', agg.lastName).maybeSingle()
+      if (byName) {
+        // Found by name — update with talexio_id if missing
+        if (!byName.talexio_id) {
+          await supabase.from('employees').update({ talexio_id: agg.empId }).eq('id', byName.id)
+        }
+        empRow = { id: byName.id, group_type: byName.group_type }
+      }
+    }
+
+    if (!empRow) {
+      const { data: newEmp } = await supabase.from('employees')
+        .insert({ talexio_id: agg.empId, first_name: agg.firstName, last_name: agg.lastName })
+        .select('id, group_type').single()
+      empRow = newEmp
+    }
+
     if (!empRow) continue
     empSet.add(empRow.id)
 
@@ -242,14 +265,22 @@ async function saveLeave(
     }
   }
 
-  // Upsert employees + save leave records
+  // Find/create employees — match by talexio_id first, then name (prevents duplicates)
   const dbEmpMap = new Map<string, string>()
   for (const entry of daily) {
     if (dbEmpMap.has(entry.empId)) continue
-    const { data } = await supabase.from('employees')
-      .upsert({ talexio_id: entry.empId, first_name: entry.firstName, last_name: entry.lastName }, { onConflict: 'talexio_id' })
-      .select('id').single()
-    if (data) dbEmpMap.set(entry.empId, data.id)
+
+    const { data: byId } = await supabase.from('employees').select('id').eq('talexio_id', entry.empId).maybeSingle()
+    if (byId) { dbEmpMap.set(entry.empId, byId.id); continue }
+
+    const { data: byName } = await supabase.from('employees').select('id, talexio_id').eq('first_name', entry.firstName).eq('last_name', entry.lastName).maybeSingle()
+    if (byName) {
+      if (!byName.talexio_id) await supabase.from('employees').update({ talexio_id: entry.empId }).eq('id', byName.id)
+      dbEmpMap.set(entry.empId, byName.id); continue
+    }
+
+    const { data: newEmp } = await supabase.from('employees').insert({ talexio_id: entry.empId, first_name: entry.firstName, last_name: entry.lastName }).select('id').single()
+    if (newEmp) dbEmpMap.set(entry.empId, newEmp.id)
   }
 
   for (const entry of daily) {
@@ -287,6 +318,14 @@ export async function POST(req: NextRequest) {
     if (!dateFrom || !dateTo) return NextResponse.json({ error: 'dateFrom and dateTo required' }, { status: 400 })
     if (!token) return NextResponse.json({ error: 'Bearer token is required' }, { status: 400 })
 
+    // Enforce max 14 days per pull to avoid timeouts
+    const dayDiff = (new Date(dateTo).getTime() - new Date(dateFrom).getTime()) / 86_400_000
+    if (dayDiff > 14) {
+      return NextResponse.json({
+        error: `Date range is ${Math.round(dayDiff)} days — max 14 days per pull. Pull in weekly chunks to avoid timeout.`,
+      }, { status: 400 })
+    }
+
     const supabase = createAdminClient()
     const results: Record<string, unknown> = { dateRange: { from: dateFrom, to: dateTo } }
 
@@ -320,17 +359,31 @@ export async function POST(req: NextRequest) {
         if (dow >= 1 && dow <= 5) workdays.push(d.toISOString().slice(0, 10))
         d.setDate(d.getDate() + 1)
       }
+
+      // Fetch all existing records in range in ONE query, then diff
+      const empIds = maltaEmps.map(e => e.id)
+      const { data: existing } = await supabase.from('attendance_records')
+        .select('employee_id, date').in('employee_id', empIds).gte('date', dateFrom).lte('date', dateTo)
+
+      const existingSet = new Set((existing ?? []).map(r => `${r.employee_id}::${r.date}`))
+
+      const toInsert: { employee_id: string; date: string; status: string; comments: string; updated_at: string }[] = []
       for (const emp of maltaEmps) {
         for (const wd of workdays) {
-          const { data: existing } = await supabase.from('attendance_records').select('id').eq('employee_id', emp.id).eq('date', wd).maybeSingle()
-          if (!existing) {
-            await supabase.from('attendance_records').insert({
+          if (!existingSet.has(`${emp.id}::${wd}`)) {
+            toInsert.push({
               employee_id: emp.id, date: wd, status: 'no_clocking',
               comments: 'No clocking record for this working day', updated_at: new Date().toISOString(),
             })
-            noClockingGenerated++
           }
         }
+      }
+
+      // Batch insert in chunks of 500
+      for (let i = 0; i < toInsert.length; i += 500) {
+        const chunk = toInsert.slice(i, i + 500)
+        await supabase.from('attendance_records').insert(chunk)
+        noClockingGenerated += chunk.length
       }
     }
     results.noClockingGenerated = noClockingGenerated
