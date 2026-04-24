@@ -38,23 +38,31 @@ function isOfficeName(n: string | null) {
   return l.includes('head office') || l === 'office' || l.includes('ta office')
 }
 
+/** JWT tokens (3 dot-separated base64 parts) go as `Authorization: Bearer`;
+ *  legacy string tokens go as `talexio-api-token`. */
+function looksLikeJwt(t: string): boolean {
+  return t.split('.').length === 3
+}
+
 /**
- * Talexio GraphQL call. If token is provided, uses Bearer auth (session JWT);
- * otherwise uses the persistent API token from env vars.
+ * Talexio GraphQL call. Uses the explicit `token` arg if given, else falls
+ * back to the NEXT_PUBLIC_TALEXIOHR_TOKEN env var. Auto-detects JWT vs
+ * legacy token format and sets the correct auth header.
  */
 function gqlFetch(token: string | null, query: string, variables: Record<string, unknown>) {
+  const actualToken = token ?? process.env.NEXT_PUBLIC_TALEXIOHR_TOKEN
+  if (!actualToken) throw new Error('No token provided and NEXT_PUBLIC_TALEXIOHR_TOKEN is not set')
+
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     'client-domain': DOMAIN,
     'apollographql-client-name': 'talexio-hr-frontend',
     'apollographql-client-version': '1.0',
   }
-  if (token) {
-    headers['authorization'] = `Bearer ${token}`
+  if (looksLikeJwt(actualToken)) {
+    headers['authorization'] = `Bearer ${actualToken}`
   } else {
-    const apiToken = process.env.NEXT_PUBLIC_TALEXIOHR_TOKEN
-    if (!apiToken) throw new Error('No Bearer token provided and NEXT_PUBLIC_TALEXIOHR_TOKEN is not set')
-    headers['talexio-api-token'] = apiToken
+    headers['talexio-api-token'] = actualToken
   }
   return fetch(GQL_URL, {
     method: 'POST',

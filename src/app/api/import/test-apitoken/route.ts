@@ -11,12 +11,18 @@ export async function GET(req: NextRequest) {
 
   if (!API_TOKEN) return NextResponse.json({ error: 'NEXT_PUBLIC_TALEXIOHR_TOKEN not set' }, { status: 500 })
 
+  // Auto-detect JWT vs legacy token format
+  const isJwt = API_TOKEN.split('.').length === 3
+  const authHeaders: Record<string, string> = isJwt
+    ? { 'authorization': `Bearer ${API_TOKEN}` }
+    : { 'talexio-api-token': API_TOKEN }
+
   try {
     const res = await fetch(API_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'talexio-api-token': API_TOKEN,
+        ...authHeaders,
         'client-domain': API_DOMAIN,
       },
       body: JSON.stringify({
@@ -41,7 +47,7 @@ export async function GET(req: NextRequest) {
     const ok = res.ok && !hasGqlErrors && !hasAuthError && !!json.data
 
     return NextResponse.json({
-      authType: 'talexio-api-token (persistent)',
+      authType: isJwt ? 'Bearer JWT' : 'talexio-api-token (legacy)',
       httpStatus: res.status,
       ok,
       authError: hasAuthError ? json.error : null,
