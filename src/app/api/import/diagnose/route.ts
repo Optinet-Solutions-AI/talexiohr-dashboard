@@ -36,7 +36,10 @@ export async function GET(req: NextRequest) {
     : { 'talexio-api-token': apiToken }
 
   const allLogs: { from: string; to: string; employee?: { fullName: string; id: string } }[] = []
+  // Try both page 0 and page 1 indexing — Talexio's convention is unclear.
+  // Also log the raw response for the first page so we can see what's happening.
   let page = 1
+  let firstRawResponse: unknown = null
   let total = 0
   let pagesFetched = 0
   while (true) {
@@ -55,6 +58,7 @@ export async function GET(req: NextRequest) {
       cache: 'no-store',
     })
     const json = await res.json()
+    if (!firstRawResponse) firstRawResponse = json
     if (json.errors?.length || json.error) {
       return NextResponse.json({ apiError: json.errors ?? json.error, partialResults: allLogs.length }, { status: 500 })
     }
@@ -93,6 +97,7 @@ export async function GET(req: NextRequest) {
         employee: l.employee?.fullName,
         from: l.from, to: l.to,
       })),
+      firstRawResponse,
     },
   })
 }
