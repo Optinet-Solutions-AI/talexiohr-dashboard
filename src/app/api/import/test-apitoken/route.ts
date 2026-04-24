@@ -36,11 +36,16 @@ export async function GET(req: NextRequest) {
     })
 
     const json = await res.json()
+    const hasGqlErrors = !!json.errors?.length
+    const hasAuthError = !!json.error // Talexio auth failures return { error: "..." }
+    const ok = res.ok && !hasGqlErrors && !hasAuthError && !!json.data
 
     return NextResponse.json({
       authType: 'talexio-api-token (persistent)',
-      ok: !json.errors?.length,
-      errors: json.errors ?? null,
+      httpStatus: res.status,
+      ok,
+      authError: hasAuthError ? json.error : null,
+      gqlErrors: hasGqlErrors ? json.errors : null,
       totalCount: json.data?.pagedTimeLogs?.totalCount ?? null,
       uniqueEmployees: [...new Set((json.data?.pagedTimeLogs?.timeLogs ?? []).map((l: { employee?: { id: string } }) => l.employee?.id).filter(Boolean))].length,
       sample: json.data?.pagedTimeLogs?.timeLogs?.slice(0, 3).map((l: { from: string; employee?: { fullName: string } }) => ({
