@@ -379,11 +379,12 @@ export async function POST(req: NextRequest) {
     const token: string | null = rawToken?.trim() || null
     if (!dateFrom || !dateTo) return NextResponse.json({ error: 'dateFrom and dateTo required' }, { status: 400 })
 
-    // Enforce max 14 days per pull to avoid timeouts
+    // Cap at 31 days to stay under Vercel's 300s function timeout.
+    // Larger ranges should be pulled in chunks.
     const dayDiff = (new Date(dateTo).getTime() - new Date(dateFrom).getTime()) / 86_400_000
-    if (dayDiff > 14) {
+    if (dayDiff > 31) {
       return NextResponse.json({
-        error: `Date range is ${Math.round(dayDiff)} days — max 14 days per pull. Pull in weekly chunks to avoid timeout.`,
+        error: `Date range is ${Math.round(dayDiff)} days — max 31 days per pull. Split into monthly chunks.`,
       }, { status: 400 })
     }
 

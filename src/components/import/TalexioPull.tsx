@@ -58,7 +58,7 @@ export default function TalexioPull() {
       <div className="px-4 py-3 border-b border-slate-100">
         <h2 className="text-sm font-semibold text-slate-800">Pull from Talexio API</h2>
         <p className="text-xs text-slate-600 mt-0.5">
-          Pick a date range (max 14 days) and pull clockings + leave directly from Talexio. Uses the persistent API token configured in environment variables.
+          Pick a date range (max 31 days) and pull clockings + leave directly from Talexio. Uses the API token configured in environment variables.
         </p>
       </div>
 
