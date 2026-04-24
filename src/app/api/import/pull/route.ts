@@ -158,9 +158,17 @@ async function fetchLeave(token: string | null): Promise<{ employees: { id: stri
 async function saveClockings(logs: TimeLog[]) {
   const supabase = createAdminClient()
 
-  // Preload employees so we know each employee's timezone upfront.
-  // Used for: (a) grouping by employee-local date, (b) formatting time_in/out
-  const { data: allEmps } = await supabase.from('employees').select('id, first_name, last_name, full_name, talexio_id, group_type, timezone')
+  // Preload employees. Try WITH timezone first (new schema); fall back if
+  // the migration hasn't been run yet.
+  let allEmps: { id: string; first_name: string; last_name: string; full_name: string; talexio_id: string | null; group_type: string | null; timezone?: string | null }[] | null = null
+  const withTz = await supabase.from('employees').select('id, first_name, last_name, full_name, talexio_id, group_type, timezone')
+  if (withTz.error) {
+    // Column doesn't exist yet — fall back to default Malta for everyone
+    const fallback = await supabase.from('employees').select('id, first_name, last_name, full_name, talexio_id, group_type')
+    allEmps = fallback.data
+  } else {
+    allEmps = withTz.data
+  }
   const normalize = (s: string) => (s ?? '').toLowerCase().replace(/\s+/g, ' ').trim().normalize('NFD').replace(/[̀-ͯ]/g, '')
   const tzByTalexioId = new Map<string, string>()
   const tzByName = new Map<string, string>()

@@ -31,7 +31,7 @@ export default async function EmployeesPage({ searchParams }: PageProps) {
   // Filtered query
   let query = supabase
     .from('employees')
-    .select('id, full_name, talexio_id, unit, group_type, job_schedule, position, excluded, timezone, created_at', { count: 'exact' })
+    .select('*', { count: 'exact' })
     .order('last_name')
 
   if (show === 'active') query = query.eq('excluded', false)
