@@ -106,7 +106,7 @@ export default async function AttendancePage({ searchParams }: PageProps) {
                         <td className="px-4 py-2.5"><StatusBadge status={r.status} /></td>
                         <td className="px-4 py-2.5 text-slate-500 whitespace-nowrap font-mono">{r.time_in ? r.time_in.slice(0, 5) : '—'}</td>
                         <td className="px-4 py-2.5 text-slate-500 whitespace-nowrap font-mono">{r.time_out ? r.time_out.slice(0, 5) : '—'}</td>
-                        <td className="px-4 py-2.5 text-slate-500 whitespace-nowrap">{r.hours_worked != null ? `${Math.floor(r.hours_worked)}h ${Math.round((r.hours_worked % 1) * 60)}m` : '—'}</td>
+                        <td className="px-4 py-2.5 text-slate-500 whitespace-nowrap">{r.hours_worked != null ? `${r.hours_worked.toFixed(2)}h` : '—'}</td>
                         <td className="px-4 py-2.5 text-slate-600 max-w-xs truncate">{r.comments || '—'}</td>
                       </tr>
                     )
@@ -128,7 +128,7 @@ export default async function AttendancePage({ searchParams }: PageProps) {
                     <div className="flex items-center gap-3 text-[11px] text-slate-600">
                       <span>{r.date}</span>
                       <span>{r.time_in ? r.time_in.slice(0, 5) : '—'} → {r.time_out ? r.time_out.slice(0, 5) : '—'}</span>
-                      <span>{r.hours_worked != null ? `${Math.floor(r.hours_worked)}h ${Math.round((r.hours_worked % 1) * 60)}m` : '—'}</span>
+                      <span>{r.hours_worked != null ? `${r.hours_worked.toFixed(2)}h` : '—'}</span>
                     </div>
                   </div>
                 )

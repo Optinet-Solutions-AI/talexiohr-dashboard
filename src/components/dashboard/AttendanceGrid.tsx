@@ -123,7 +123,7 @@ export default function AttendanceGrid({ employees, dates }: { employees: GridEm
                     {emp.completedDays != null && emp.completedDays > 0 ? (
                       <div title={`${emp.totalHours}h total / ${emp.completedDays} days`}>
                         <span className={`text-xs font-bold ${(emp.avgHours ?? 0) < 7 ? 'text-red-600' : (emp.avgHours ?? 0) < 8 ? 'text-amber-600' : 'text-slate-800'}`}>
-                          {emp.avgHours?.toFixed(1)}
+                          {emp.avgHours?.toFixed(2)}
                         </span>
                         <span className="block text-[9px] text-slate-600">{emp.totalHours}h / {emp.completedDays}d</span>
                       </div>
@@ -166,7 +166,7 @@ export default function AttendanceGrid({ employees, dates }: { employees: GridEm
           </div>
           <div className="text-slate-300">
             {(STATUS_CONFIG[tooltip.day.status] ?? STATUS_CONFIG.unknown).label}
-            {tooltip.day.hours != null && <span className="ml-1.5 text-white font-medium">{tooltip.day.hours.toFixed(1)}h</span>}
+            {tooltip.day.hours != null && <span className="ml-1.5 text-white font-medium">{tooltip.day.hours.toFixed(2)}h</span>}
           </div>
           {tooltip.day.timeIn && (
             <div className="text-slate-400 text-[10px]">
