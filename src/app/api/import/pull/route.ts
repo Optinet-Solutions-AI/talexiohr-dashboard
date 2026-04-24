@@ -5,26 +5,21 @@ const DOMAIN = 'roosterpartners.talexiohr.com'
 const GQL_URL = 'https://api.talexiohr.com/graphql'
 
 /**
- * IMPORTANT: Talexio's `from`/`to` ISO strings end in 'Z' but actually contain
- * Malta CET wall-clock time (UTC+1) — they do NOT adjust for DST.
+ * Talexio's `from`/`to` ISO strings are REAL UTC timestamps.
+ * Talexio's UI shows each employee's LOCAL time (Malta for office staff,
+ * Minsk/etc. for remote workers). So Polina's 06:38:52Z displays as 09:38
+ * in her Talexio (Minsk UTC+3) but should be 08:38 in our Malta dashboard.
  *
- * Example: 09:38 CEST clocking on April 1 (summer, DST) is stored as
- * "2026-04-01T08:38:00.000Z" (treated as CET all year).
- *
- * To display correct Malta local time (CET in winter, CEST in summer):
- *   1. Subtract 1 hour from the "Z" value → real UTC
- *   2. Convert real UTC to Europe/Malta timezone (Intl handles DST)
+ * We always convert to Malta time for consistency. Intl.DateTimeFormat
+ * with 'Europe/Malta' handles CET/CEST (DST) automatically.
  */
 function maltaWallClock(iso: string): { date: string; time: string } {
-  const naive = new Date(iso)
-  // Shift back 1 hour: Talexio's "CET as UTC" → real UTC
-  const realUtc = new Date(naive.getTime() - 3_600_000)
-
-  const date = realUtc.toLocaleDateString('en-CA', { timeZone: 'Europe/Malta' })
+  const utc = new Date(iso)
+  const date = utc.toLocaleDateString('en-CA', { timeZone: 'Europe/Malta' })
   const parts = new Intl.DateTimeFormat('en-GB', {
     timeZone: 'Europe/Malta',
     hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
-  }).formatToParts(realUtc)
+  }).formatToParts(utc)
   const h = parts.find(p => p.type === 'hour')?.value ?? '00'
   const m = parts.find(p => p.type === 'minute')?.value ?? '00'
   const s = parts.find(p => p.type === 'second')?.value ?? '00'
