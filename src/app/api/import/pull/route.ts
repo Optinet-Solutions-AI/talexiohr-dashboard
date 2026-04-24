@@ -237,11 +237,18 @@ async function saveClockings(logs: TimeLog[]) {
     const timeIn = froms.length ? maltaTime(new Date(Math.min(...froms)).toISOString()) : null
     const timeOut = tos.length ? maltaTime(new Date(Math.max(...tos)).toISOString()) : null
 
-    // Hours: earliest in → latest out
+    // Hours = SUM of each session's duration (excludes breaks between sessions).
+    // Previously: max(to) - min(from) which included lunch breaks in the total.
     let hours: number | null = null
-    if (froms.length && tos.length) {
-      hours = Math.round(((Math.max(...tos) - Math.min(...froms)) / 3_600_000) * 100) / 100
+    let hasPair = false
+    let sumMs = 0
+    for (const s of sessions) {
+      if (s.from && s.to) {
+        sumMs += new Date(s.to).getTime() - new Date(s.from).getTime()
+        hasPair = true
+      }
     }
+    if (hasPair) hours = Math.round((sumMs / 3_600_000) * 100) / 100
 
     // Detect broken: has from but no to
     const hasBroken = froms.length > 0 && tos.length === 0
