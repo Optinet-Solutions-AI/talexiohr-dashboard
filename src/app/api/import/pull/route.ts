@@ -1,9 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { format } from 'date-fns'
 
 const DOMAIN = 'roosterpartners.talexiohr.com'
 const GQL_URL = 'https://api.talexiohr.com/graphql'
+const MALTA_TZ = 'Europe/Malta'
+
+/** Convert an ISO UTC timestamp to a Malta-local YYYY-MM-DD date string. */
+function maltaDate(iso: string): string {
+  // 'en-CA' gives YYYY-MM-DD format
+  return new Date(iso).toLocaleDateString('en-CA', { timeZone: MALTA_TZ })
+}
+
+/** Convert an ISO UTC timestamp to a Malta-local HH:MM:SS time string. */
+function maltaTime(iso: string): string {
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: MALTA_TZ,
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
+  }).formatToParts(new Date(iso))
+  const h = parts.find(p => p.type === 'hour')?.value ?? '00'
+  const m = parts.find(p => p.type === 'minute')?.value ?? '00'
+  const s = parts.find(p => p.type === 'second')?.value ?? '00'
+  return `${h}:${m}:${s}`
+}
 
 const OFFICE_LAT = 35.9222072, OFFICE_LNG = 14.4878368, OFFICE_KM = 0.15
 
@@ -136,7 +154,9 @@ async function saveClockings(logs: TimeLog[]) {
 
   for (const log of logs) {
     if (!log.employee || !log.from) continue
-    const date = format(new Date(log.from), 'yyyy-MM-dd')
+    // Group by Malta-local date, not UTC. A shift ending at 2 AM Malta time
+    // belongs to the day it STARTED, and must be the Malta date.
+    const date = maltaDate(log.from)
     const key = `${log.employee.id}::${date}`
     if (!grouped.has(key)) {
       grouped.set(key, {
@@ -203,11 +223,11 @@ async function saveClockings(logs: TimeLog[]) {
       isOfficeGps(s.workLocationIn?.lat ?? null, s.workLocationIn?.long ?? null)
     )
 
-    // Aggregate from/to across sessions (earliest in, latest out)
+    // Aggregate from/to across sessions (earliest in, latest out) — in Malta time
     const froms = sessions.filter(s => s.from).map(s => new Date(s.from!).getTime())
     const tos = sessions.filter(s => s.to).map(s => new Date(s.to!).getTime())
-    const timeIn = froms.length ? new Date(Math.min(...froms)).toISOString().slice(11, 19) : null
-    const timeOut = tos.length ? new Date(Math.max(...tos)).toISOString().slice(11, 19) : null
+    const timeIn = froms.length ? maltaTime(new Date(Math.min(...froms)).toISOString()) : null
+    const timeOut = tos.length ? maltaTime(new Date(Math.max(...tos)).toISOString()) : null
 
     // Hours: earliest in → latest out
     let hours: number | null = null
