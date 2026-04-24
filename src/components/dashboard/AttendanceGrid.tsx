@@ -22,6 +22,7 @@ export interface GridDay {
   timeIn?: string | null
   timeOut?: string | null
   flags?: string[]
+  detectedTz?: string | null
 }
 
 export interface GridEmployee {
@@ -170,7 +171,12 @@ export default function AttendanceGrid({ employees, dates }: { employees: GridEm
           </div>
           {tooltip.day.timeIn && (
             <div className="text-slate-400 text-[10px]">
-              {tooltip.day.timeIn?.slice(0, 5)} → {tooltip.day.timeOut?.slice(0, 5) ?? '—'}
+              {tooltip.day.timeIn?.slice(0, 5)} → {tooltip.day.timeOut?.slice(0, 5) ?? '—'} <span className="text-slate-500">Malta</span>
+            </div>
+          )}
+          {tooltip.day.detectedTz && tooltip.day.detectedTz !== 'Europe/Malta' && (
+            <div className="text-indigo-300 text-[10px]">
+              📍 Clocked from {tooltip.day.detectedTz.replace('_', ' ')}
             </div>
           )}
           {tooltip.day.flags && tooltip.day.flags.length > 0 && (

@@ -1,8 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+// @ts-expect-error - tz-lookup has no types
+import tzLookup from 'tz-lookup'
 
 const DOMAIN = 'roosterpartners.talexiohr.com'
 const GQL_URL = 'https://api.talexiohr.com/graphql'
+
+/** GPS → IANA timezone. Returns null if coords are invalid. */
+function detectTimezone(lat: number | null, lng: number | null): string | null {
+  if (lat == null || lng == null || isNaN(lat) || isNaN(lng)) return null
+  try {
+    return tzLookup(lat, lng) as string
+  } catch {
+    return null
+  }
+}
 
 /**
  * Talexio's `from`/`to` ISO strings are REAL UTC timestamps.
@@ -158,52 +170,39 @@ async function fetchLeave(token: string | null): Promise<{ employees: { id: stri
 async function saveClockings(logs: TimeLog[]) {
   const supabase = createAdminClient()
 
-  // Preload employees. Try WITH timezone first (new schema); fall back if
-  // the migration hasn't been run yet.
-  let allEmps: { id: string; first_name: string; last_name: string; full_name: string; talexio_id: string | null; group_type: string | null; timezone?: string | null }[] | null = null
-  const withTz = await supabase.from('employees').select('id, first_name, last_name, full_name, talexio_id, group_type, timezone')
-  if (withTz.error) {
-    // Column doesn't exist yet — fall back to default Malta for everyone
-    const fallback = await supabase.from('employees').select('id, first_name, last_name, full_name, talexio_id, group_type')
-    allEmps = fallback.data
-  } else {
-    allEmps = withTz.data
-  }
+  // Preload employees for name/id matching (prevents duplicates)
+  const { data: allEmps } = await supabase.from('employees').select('id, first_name, last_name, full_name, talexio_id, group_type')
   const normalize = (s: string) => (s ?? '').toLowerCase().replace(/\s+/g, ' ').trim().normalize('NFD').replace(/[̀-ͯ]/g, '')
-  const tzByTalexioId = new Map<string, string>()
-  const tzByName = new Map<string, string>()
-  for (const e of allEmps ?? []) {
-    const tz = e.timezone ?? 'Europe/Malta'
-    if (e.talexio_id) tzByTalexioId.set(e.talexio_id, tz)
-    const nkey = normalize(e.full_name ?? `${e.first_name} ${e.last_name}`)
-    if (nkey) tzByName.set(nkey, tz)
-  }
 
-  function tzForLog(log: TimeLog): string {
-    const byId = log.employee ? tzByTalexioId.get(log.employee.id) : null
-    if (byId) return byId
-    const byName = log.employee ? tzByName.get(normalize(log.employee.fullName)) : null
-    return byName ?? 'Europe/Malta'
+  // Group by employee+date using MALTA date (everyone displayed in Malta time
+  // for consistency). Per-clocking timezone is detected from GPS separately
+  // for the detected_timezone column.
+  type Agg = {
+    empId: string; firstName: string; lastName: string; date: string;
+    logs: TimeLog[];
+    clockingTzs: Set<string>; // detected timezones from GPS for this day
   }
-
-  // Group by employee+date (multiple sessions per day), using each employee's timezone
-  type Agg = { empId: string; firstName: string; lastName: string; date: string; tz: string; logs: TimeLog[] }
   const grouped = new Map<string, Agg>()
 
   for (const log of logs) {
     if (!log.employee || !log.from) continue
-    const tz = tzForLog(log)
-    const date = wallClock(log.from, tz).date
+    const date = wallClock(log.from, 'Europe/Malta').date
     const key = `${log.employee.id}::${date}`
     if (!grouped.has(key)) {
       grouped.set(key, {
         empId: log.employee.id,
         firstName: log.employee.firstName || log.employee.fullName.split(' ').slice(0, -1).join(' '),
         lastName: log.employee.lastName || log.employee.fullName.split(' ').slice(-1)[0],
-        date, tz, logs: [],
+        date, logs: [], clockingTzs: new Set<string>(),
       })
     }
-    grouped.get(key)!.logs.push(log)
+    const agg = grouped.get(key)!
+    agg.logs.push(log)
+    // Detect TZ from this clocking's GPS
+    const detectedIn = detectTimezone(log.locationLatIn, log.locationLongIn)
+    const detectedOut = detectTimezone(log.locationLatOut, log.locationLongOut)
+    if (detectedIn) agg.clockingTzs.add(detectedIn)
+    if (detectedOut) agg.clockingTzs.add(detectedOut)
   }
 
   let saved = 0
@@ -261,8 +260,8 @@ async function saveClockings(logs: TimeLog[]) {
     // Aggregate from/to across sessions (earliest in, latest out) — in Malta time
     const froms = sessions.filter(s => s.from).map(s => new Date(s.from!).getTime())
     const tos = sessions.filter(s => s.to).map(s => new Date(s.to!).getTime())
-    const timeIn = froms.length ? wallClock(new Date(Math.min(...froms)).toISOString(), agg.tz).time : null
-    const timeOut = tos.length ? wallClock(new Date(Math.max(...tos)).toISOString(), agg.tz).time : null
+    const timeIn = froms.length ? wallClock(new Date(Math.min(...froms)).toISOString(), 'Europe/Malta').time : null
+    const timeOut = tos.length ? wallClock(new Date(Math.max(...tos)).toISOString(), 'Europe/Malta').time : null
 
     // Hours = SUM of each session's duration (excludes breaks between sessions).
     // Previously: max(to) - min(from) which included lunch breaks in the total.
@@ -295,7 +294,11 @@ async function saveClockings(logs: TimeLog[]) {
     const latOut = first.locationLatOut ?? first.workLocationOut?.lat ?? null
     const lngOut = first.locationLongOut ?? first.workLocationOut?.long ?? null
 
-    await supabase.from('attendance_records').upsert({
+    // Detected timezone(s) from GPS — pick the first one found
+    const detectedTz = agg.clockingTzs.size > 0 ? [...agg.clockingTzs].join(',') : null
+
+    // Build upsert payload; include detected_timezone only if the column exists
+    const record: Record<string, unknown> = {
       employee_id: empRow.id, date: agg.date,
       location_in: locIn, lat_in: latIn, lng_in: lngIn,
       time_in: timeIn,
@@ -306,7 +309,15 @@ async function saveClockings(logs: TimeLog[]) {
       comments: hasBroken ? 'No clock-out' : (first.label ?? null),
       raw_data: sessions,
       updated_at: new Date().toISOString(),
-    }, { onConflict: 'employee_id,date' })
+    }
+    if (detectedTz) record.detected_timezone = detectedTz
+
+    const { error: upsertErr } = await supabase.from('attendance_records').upsert(record, { onConflict: 'employee_id,date' })
+    if (upsertErr?.message?.includes('detected_timezone')) {
+      // Column doesn't exist yet — retry without it
+      delete record.detected_timezone
+      await supabase.from('attendance_records').upsert(record, { onConflict: 'employee_id,date' })
+    }
     saved++
   }
 

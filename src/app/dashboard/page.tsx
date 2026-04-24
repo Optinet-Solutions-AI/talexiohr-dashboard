@@ -38,6 +38,7 @@ type RecordRow = {
   lat_in: number | null
   lng_in: number | null
   location_out: string | null
+  detected_timezone?: string | null
   lat_out: number | null
   lng_out: number | null
   employees: { id: string; full_name: string } | { id: string; full_name: string }[]
@@ -123,7 +124,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
 
   let query = supabase
     .from('attendance_records')
-    .select('date, status, hours_worked, time_in, time_out, location_in, lat_in, lng_in, location_out, lat_out, lng_out, employees!inner(id, full_name)')
+    .select('*, employees!inner(id, full_name)')
     .gte('date', from).lte('date', to).order('date')
   if (empFilter) query = query.eq('employee_id', empFilter)
   const { data: records } = await query
@@ -183,7 +184,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
       if ((r.status === 'broken' || r.status === 'active') && (!r.time_in || r.time_out)) flags.push('Broken')
       if (r.status === 'office' && r.lat_out && r.lng_out && !isAtOffice(r.lat_out, r.lng_out)) flags.push('Clock-out location mismatch')
       if (r.status === 'office' && r.lat_in && r.lng_in && !isAtOffice(r.lat_in, r.lng_in)) flags.push('Clock-in location mismatch')
-      return { date: r.date, label: r.status, status: r.status, hours: r.hours_worked, timeIn: r.time_in, timeOut: r.time_out, flags }
+      return { date: r.date, label: r.status, status: r.status, hours: r.hours_worked, timeIn: r.time_in, timeOut: r.time_out, flags, detectedTz: r.detected_timezone ?? null }
     })
 
     // Completed workdays = days with valid clock-in AND clock-out (not broken/active)
