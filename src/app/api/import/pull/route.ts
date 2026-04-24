@@ -17,23 +17,39 @@ function detectTimezone(lat: number | null, lng: number | null): string | null {
 }
 
 /**
- * Talexio's `from`/`to` ISO strings are REAL UTC timestamps.
- * Each employee's Talexio UI displays their LOCAL time based on their
- * configured location (Malta for office, Minsk for Polina, etc.).
- * We convert UTC to the employee's configured timezone so dashboard
- * data matches Talexio's CSV exports.
+ * EU DST rules: starts last Sunday of March 01:00 UTC, ends last Sunday
+ * of October 01:00 UTC. Malta follows these rules → CET (UTC+1) in winter,
+ * CEST (UTC+2) in summer.
+ *
+ * We compute this manually (not via Intl/ICU) so it works reliably on
+ * Vercel even when ICU data is incomplete.
  */
-function wallClock(iso: string, tz: string = 'Europe/Malta'): { date: string; time: string } {
+function lastSundayOfMonthUTC(year: number, month: number): Date {
+  // month is 0-indexed
+  const d = new Date(Date.UTC(year, month + 1, 0, 1, 0, 0)) // last day of month, 01:00 UTC
+  const dow = d.getUTCDay()
+  d.setUTCDate(d.getUTCDate() - dow)
+  d.setUTCHours(1, 0, 0, 0)
+  return d
+}
+
+function isMaltaInDST(utc: Date): boolean {
+  const y = utc.getUTCFullYear()
+  return utc >= lastSundayOfMonthUTC(y, 2) /* March */ && utc < lastSundayOfMonthUTC(y, 9) /* October */
+}
+
+/** Talexio sends real UTC. Convert to Malta local (CEST or CET, auto). */
+function wallClock(iso: string, _tz: string = 'Europe/Malta'): { date: string; time: string } {
   const utc = new Date(iso)
-  const date = utc.toLocaleDateString('en-CA', { timeZone: tz })
-  const parts = new Intl.DateTimeFormat('en-GB', {
-    timeZone: tz,
-    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
-  }).formatToParts(utc)
-  const h = parts.find(p => p.type === 'hour')?.value ?? '00'
-  const m = parts.find(p => p.type === 'minute')?.value ?? '00'
-  const s = parts.find(p => p.type === 'second')?.value ?? '00'
-  return { date, time: `${h}:${m}:${s}` }
+  const offsetHours = isMaltaInDST(utc) ? 2 : 1
+  const local = new Date(utc.getTime() + offsetHours * 3_600_000)
+  const yyyy = local.getUTCFullYear()
+  const mm = String(local.getUTCMonth() + 1).padStart(2, '0')
+  const dd = String(local.getUTCDate()).padStart(2, '0')
+  const hh = String(local.getUTCHours()).padStart(2, '0')
+  const mi = String(local.getUTCMinutes()).padStart(2, '0')
+  const ss = String(local.getUTCSeconds()).padStart(2, '0')
+  return { date: `${yyyy}-${mm}-${dd}`, time: `${hh}:${mi}:${ss}` }
 }
 
 
