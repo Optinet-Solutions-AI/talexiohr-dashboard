@@ -3,24 +3,21 @@ import { createAdminClient } from '@/lib/supabase/admin'
 
 const DOMAIN = 'roosterpartners.talexiohr.com'
 const GQL_URL = 'https://api.talexiohr.com/graphql'
-const MALTA_TZ = 'Europe/Malta'
 
-/** Convert an ISO UTC timestamp to a Malta-local YYYY-MM-DD date string. */
+/**
+ * IMPORTANT: Talexio's `from`/`to` ISO strings end in 'Z' but actually contain
+ * Malta wall-clock time (not real UTC). So we extract date/time directly from
+ * the string without any timezone conversion.
+ *
+ * Example: "2026-04-01T09:38:00.000Z" means Polina clocked in at 09:38 Malta
+ * time on April 1 — NOT 09:38 UTC (which would be 11:38 Malta).
+ */
 function maltaDate(iso: string): string {
-  // 'en-CA' gives YYYY-MM-DD format
-  return new Date(iso).toLocaleDateString('en-CA', { timeZone: MALTA_TZ })
+  return iso.slice(0, 10)
 }
 
-/** Convert an ISO UTC timestamp to a Malta-local HH:MM:SS time string. */
 function maltaTime(iso: string): string {
-  const parts = new Intl.DateTimeFormat('en-GB', {
-    timeZone: MALTA_TZ,
-    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
-  }).formatToParts(new Date(iso))
-  const h = parts.find(p => p.type === 'hour')?.value ?? '00'
-  const m = parts.find(p => p.type === 'minute')?.value ?? '00'
-  const s = parts.find(p => p.type === 'second')?.value ?? '00'
-  return `${h}:${m}:${s}`
+  return iso.slice(11, 19)
 }
 
 const OFFICE_LAT = 35.9222072, OFFICE_LNG = 14.4878368, OFFICE_KM = 0.15
