@@ -6,18 +6,16 @@ const GQL_URL = 'https://api.talexiohr.com/graphql'
 
 /**
  * Talexio's `from`/`to` ISO strings are REAL UTC timestamps.
- * Talexio's UI shows each employee's LOCAL time (Malta for office staff,
- * Minsk/etc. for remote workers). So Polina's 06:38:52Z displays as 09:38
- * in her Talexio (Minsk UTC+3) but should be 08:38 in our Malta dashboard.
- *
- * We always convert to Malta time for consistency. Intl.DateTimeFormat
- * with 'Europe/Malta' handles CET/CEST (DST) automatically.
+ * Each employee's Talexio UI displays their LOCAL time based on their
+ * configured location (Malta for office, Minsk for Polina, etc.).
+ * We convert UTC to the employee's configured timezone so dashboard
+ * data matches Talexio's CSV exports.
  */
-function maltaWallClock(iso: string): { date: string; time: string } {
+function wallClock(iso: string, tz: string = 'Europe/Malta'): { date: string; time: string } {
   const utc = new Date(iso)
-  const date = utc.toLocaleDateString('en-CA', { timeZone: 'Europe/Malta' })
+  const date = utc.toLocaleDateString('en-CA', { timeZone: tz })
   const parts = new Intl.DateTimeFormat('en-GB', {
-    timeZone: 'Europe/Malta',
+    timeZone: tz,
     hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
   }).formatToParts(utc)
   const h = parts.find(p => p.type === 'hour')?.value ?? '00'
@@ -26,8 +24,6 @@ function maltaWallClock(iso: string): { date: string; time: string } {
   return { date, time: `${h}:${m}:${s}` }
 }
 
-function maltaDate(iso: string): string { return maltaWallClock(iso).date }
-function maltaTime(iso: string): string { return maltaWallClock(iso).time }
 
 const OFFICE_LAT = 35.9222072, OFFICE_LNG = 14.4878368, OFFICE_KM = 0.15
 
@@ -162,22 +158,41 @@ async function fetchLeave(token: string | null): Promise<{ employees: { id: stri
 async function saveClockings(logs: TimeLog[]) {
   const supabase = createAdminClient()
 
-  // Group by employee+date (multiple sessions per day)
-  type Agg = { empId: string; firstName: string; lastName: string; date: string; logs: TimeLog[] }
+  // Preload employees so we know each employee's timezone upfront.
+  // Used for: (a) grouping by employee-local date, (b) formatting time_in/out
+  const { data: allEmps } = await supabase.from('employees').select('id, first_name, last_name, full_name, talexio_id, group_type, timezone')
+  const normalize = (s: string) => (s ?? '').toLowerCase().replace(/\s+/g, ' ').trim().normalize('NFD').replace(/[̀-ͯ]/g, '')
+  const tzByTalexioId = new Map<string, string>()
+  const tzByName = new Map<string, string>()
+  for (const e of allEmps ?? []) {
+    const tz = e.timezone ?? 'Europe/Malta'
+    if (e.talexio_id) tzByTalexioId.set(e.talexio_id, tz)
+    const nkey = normalize(e.full_name ?? `${e.first_name} ${e.last_name}`)
+    if (nkey) tzByName.set(nkey, tz)
+  }
+
+  function tzForLog(log: TimeLog): string {
+    const byId = log.employee ? tzByTalexioId.get(log.employee.id) : null
+    if (byId) return byId
+    const byName = log.employee ? tzByName.get(normalize(log.employee.fullName)) : null
+    return byName ?? 'Europe/Malta'
+  }
+
+  // Group by employee+date (multiple sessions per day), using each employee's timezone
+  type Agg = { empId: string; firstName: string; lastName: string; date: string; tz: string; logs: TimeLog[] }
   const grouped = new Map<string, Agg>()
 
   for (const log of logs) {
     if (!log.employee || !log.from) continue
-    // Group by Malta-local date, not UTC. A shift ending at 2 AM Malta time
-    // belongs to the day it STARTED, and must be the Malta date.
-    const date = maltaDate(log.from)
+    const tz = tzForLog(log)
+    const date = wallClock(log.from, tz).date
     const key = `${log.employee.id}::${date}`
     if (!grouped.has(key)) {
       grouped.set(key, {
         empId: log.employee.id,
         firstName: log.employee.firstName || log.employee.fullName.split(' ').slice(0, -1).join(' '),
         lastName: log.employee.lastName || log.employee.fullName.split(' ').slice(-1)[0],
-        date, logs: [],
+        date, tz, logs: [],
       })
     }
     grouped.get(key)!.logs.push(log)
@@ -186,9 +201,7 @@ async function saveClockings(logs: TimeLog[]) {
   let saved = 0
   const empSet = new Set<string>()
 
-  // Preload all employees for fuzzy name matching (accent/case/whitespace insensitive)
-  const { data: allEmps } = await supabase.from('employees').select('id, first_name, last_name, full_name, talexio_id, group_type')
-  const normalize = (s: string) => (s ?? '').toLowerCase().replace(/\s+/g, ' ').trim().normalize('NFD').replace(/[̀-ͯ]/g, '')
+  // Reuse the employee list already loaded above for timezone lookup
   const byIdMap = new Map<string, { id: string; group_type: string | null; talexio_id: string | null }>()
   const byNameMap = new Map<string, { id: string; group_type: string | null; talexio_id: string | null }>()
   for (const e of allEmps ?? []) {
@@ -240,8 +253,8 @@ async function saveClockings(logs: TimeLog[]) {
     // Aggregate from/to across sessions (earliest in, latest out) — in Malta time
     const froms = sessions.filter(s => s.from).map(s => new Date(s.from!).getTime())
     const tos = sessions.filter(s => s.to).map(s => new Date(s.to!).getTime())
-    const timeIn = froms.length ? maltaTime(new Date(Math.min(...froms)).toISOString()) : null
-    const timeOut = tos.length ? maltaTime(new Date(Math.max(...tos)).toISOString()) : null
+    const timeIn = froms.length ? wallClock(new Date(Math.min(...froms)).toISOString(), agg.tz).time : null
+    const timeOut = tos.length ? wallClock(new Date(Math.max(...tos)).toISOString(), agg.tz).time : null
 
     // Hours = SUM of each session's duration (excludes breaks between sessions).
     // Previously: max(to) - min(from) which included lunch breaks in the total.

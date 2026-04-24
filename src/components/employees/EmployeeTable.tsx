@@ -11,6 +11,11 @@ const GROUP_LABEL: Record<string, { label: string; cls: string }> = {
   unclassified: { label: 'Unclassified', cls: 'bg-slate-100 text-slate-600' },
 }
 
+const TIMEZONES = [
+  'Europe/Malta', 'Europe/Minsk', 'Europe/London', 'Europe/Berlin', 'Europe/Athens',
+  'Europe/Moscow', 'Asia/Manila', 'Asia/Dubai', 'America/New_York', 'America/Los_Angeles',
+]
+
 interface Employee {
   id: string
   full_name: string
@@ -22,6 +27,7 @@ interface Employee {
   job_schedule: string | null
   position: string | null
   excluded: boolean | null
+  timezone?: string | null
 }
 
 export default function EmployeeTable({ employees }: { employees: Employee[] }) {
@@ -56,6 +62,7 @@ export default function EmployeeTable({ employees }: { employees: Employee[] }) 
       group_type: emp.group_type || 'unclassified',
       job_schedule: emp.job_schedule || '',
       position: emp.position || '',
+      timezone: emp.timezone || 'Europe/Malta',
     })
   }
 
@@ -128,8 +135,11 @@ export default function EmployeeTable({ employees }: { employees: Employee[] }) 
                     <td className="px-4 py-2">
                       <input value={editData.unit} onChange={e => setEditData(d => ({ ...d, unit: e.target.value }))} placeholder="Unit" className={inputCls} />
                     </td>
-                    <td className="px-4 py-2">
+                    <td className="px-4 py-2 space-y-1">
                       <input value={editData.job_schedule} onChange={e => setEditData(d => ({ ...d, job_schedule: e.target.value }))} placeholder="Schedule" className={inputCls} />
+                      <select value={editData.timezone} onChange={e => setEditData(d => ({ ...d, timezone: e.target.value }))} className={`${inputCls} text-[10px]`}>
+                        {TIMEZONES.map(tz => <option key={tz} value={tz}>{tz}</option>)}
+                      </select>
                     </td>
                     <td className="px-4 py-2">
                       <div className="flex items-center gap-1">
@@ -155,7 +165,12 @@ export default function EmployeeTable({ employees }: { employees: Employee[] }) 
                   <td className="px-4 py-2.5 text-slate-600 font-mono text-[11px]">{emp.talexio_id ?? '—'}</td>
                   <td className="px-4 py-2.5"><span className={`inline-flex items-center rounded px-2 py-0.5 text-[11px] font-medium ${g.cls}`}>{g.label}</span></td>
                   <td className="px-4 py-2.5 text-slate-500">{emp.unit ?? '—'}</td>
-                  <td className="px-4 py-2.5 text-slate-500">{emp.job_schedule ?? '—'}</td>
+                  <td className="px-4 py-2.5 text-slate-500">
+                    <span>{emp.job_schedule ?? '—'}</span>
+                    {emp.timezone && emp.timezone !== 'Europe/Malta' && (
+                      <span className="block text-[9px] text-indigo-600">{emp.timezone}</span>
+                    )}
+                  </td>
                   <td className="px-4 py-2.5">
                     <div className="flex items-center gap-1">
                       <button onClick={() => toggleExclude(emp.id, isExcluded)} disabled={toggling === emp.id}
