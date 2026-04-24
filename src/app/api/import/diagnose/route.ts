@@ -38,7 +38,7 @@ export async function GET(req: NextRequest) {
   const allLogs: { from: string; to: string; employee?: { fullName: string; id: string } }[] = []
   // Try both page 0 and page 1 indexing — Talexio's convention is unclear.
   // Also log the raw response for the first page so we can see what's happening.
-  let page = 1
+  let page = 0 // Talexio pagination is 0-indexed
   let firstRawResponse: unknown = null
   let total = 0
   let pagesFetched = 0

@@ -100,7 +100,7 @@ interface TimeLog {
 // ── Fetch Time Logs (clockings) ──────────────────────────────────────────────
 async function fetchTimeLogs(token: string | null, dateFrom: string, dateTo: string): Promise<{ logs: TimeLog[]; error?: string; debug?: unknown }> {
   const PAGE_SIZE = 100
-  let page = 1
+  let page = 0 // Talexio uses 0-indexed pagination (NOT 1-indexed)
   const all: TimeLog[] = []
 
   while (true) {
