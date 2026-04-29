@@ -111,16 +111,15 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   const period = sp.period ?? 'daily'
   const empFilter = sp.employee ?? ''
 
-  // Default to the current ongoing week (Mon → today). Same default for
-  // 'daily' and 'weekly' views so user lands on something useful.
+  // Default: last 7 days (today minus 6 → today)
   const defaultFrom = (() => {
     const now = new Date()
     switch (period) {
       case 'monthly': return format(startOfMonth(now), 'yyyy-MM-dd')
       case 'yearly': return format(new Date(now.getFullYear(), 0, 1), 'yyyy-MM-dd')
       default: {
-        const d = new Date(now); const day = d.getDay()
-        d.setDate(d.getDate() - (day === 0 ? 6 : day - 1)) // Monday of this week
+        const d = new Date(now)
+        d.setDate(d.getDate() - 6) // 7 days inclusive of today
         return format(d, 'yyyy-MM-dd')
       }
     }
