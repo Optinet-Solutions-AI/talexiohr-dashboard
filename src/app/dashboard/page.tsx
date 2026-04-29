@@ -81,7 +81,12 @@ function groupByPeriod(recs: RecordRow[], period: string, from: string, to: stri
   } else {
     for (const day of eachDayOfInterval({ start: fromDate, end: toDate })) {
       const dateStr = format(day, 'yyyy-MM-dd')
-      buckets.push({ label: day.toLocaleDateString('en-GB', { weekday: 'short' }) + ' ' + day.getDate(), recs: recs.filter(r => r.date === dateStr) })
+      // Compact "DD MMM" format (e.g. "01 Apr"). Recharts may skip ticks on
+      // dense ranges but each label is unambiguous on its own.
+      buckets.push({
+        label: day.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }),
+        recs: recs.filter(r => r.date === dateStr),
+      })
     }
   }
   return buckets
