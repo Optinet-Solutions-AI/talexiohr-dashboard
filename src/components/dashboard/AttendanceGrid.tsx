@@ -57,10 +57,14 @@ export default function AttendanceGrid({ employees, dates }: { employees: GridEm
             <tr>
               <th className="sticky left-0 z-20 bg-white" rowSpan={2}></th>
               {[...weeks.entries()].map(([weekKey, weekDates]) => {
-                const ws = new Date(weekKey + 'T00:00:00')
+                const start = new Date(weekDates[0] + 'T00:00:00')
+                const end = new Date(weekDates[weekDates.length - 1] + 'T00:00:00')
+                const sameMonth = start.getMonth() === end.getMonth()
+                const startLabel = start.toLocaleDateString('en-GB', { day: 'numeric', month: sameMonth ? undefined : 'short' })
+                const endLabel = end.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
                 return (
-                  <th key={weekKey} colSpan={weekDates.length} className="text-center text-[9px] font-medium text-slate-600 pb-0 pt-2 px-0">
-                    Wk {ws.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+                  <th key={weekKey} colSpan={weekDates.length} className="text-center text-[9px] font-medium text-slate-600 pb-0 pt-2 px-1 whitespace-nowrap">
+                    {startLabel} – {endLabel}
                   </th>
                 )
               })}

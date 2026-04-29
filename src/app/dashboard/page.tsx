@@ -107,13 +107,18 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   const period = sp.period ?? 'daily'
   const empFilter = sp.employee ?? ''
 
+  // Default to the current ongoing week (Mon → today). Same default for
+  // 'daily' and 'weekly' views so user lands on something useful.
   const defaultFrom = (() => {
     const now = new Date()
     switch (period) {
-      case 'weekly': { const d = new Date(now); const day = d.getDay(); d.setDate(d.getDate() - (day === 0 ? 6 : day - 1)); return format(d, 'yyyy-MM-dd') }
       case 'monthly': return format(startOfMonth(now), 'yyyy-MM-dd')
       case 'yearly': return format(new Date(now.getFullYear(), 0, 1), 'yyyy-MM-dd')
-      default: return today
+      default: {
+        const d = new Date(now); const day = d.getDay()
+        d.setDate(d.getDate() - (day === 0 ? 6 : day - 1)) // Monday of this week
+        return format(d, 'yyyy-MM-dd')
+      }
     }
   })()
 
@@ -174,7 +179,11 @@ export default async function DashboardPage({ searchParams }: PageProps) {
       color: STATUS_COLORS[name] ?? '#c7d2fe',
     }))
 
-  const dates = [...new Set(recs.map(r => r.date))].sort()
+  // Always show every date in the selected range, even if no records exist
+  const dates = eachDayOfInterval({
+    start: new Date(from + 'T00:00:00'),
+    end: new Date(to + 'T00:00:00'),
+  }).map(d => format(d, 'yyyy-MM-dd'))
   const gridEmps = empFilter ? emps.filter(e => e.id === empFilter) : emps
   const gridEmployees: GridEmployee[] = gridEmps.map(emp => {
     const empRecords = recs.filter(r => { const e = Array.isArray(r.employees) ? r.employees[0] : r.employees; return e?.id === emp.id })
