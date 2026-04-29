@@ -34,7 +34,7 @@ export default function DailyAttendanceChart({ data }: { data: DayData[] }) {
     <ResponsiveContainer width="100%" height={240}>
       <BarChart data={data} margin={{ top: 4, right: 4, left: -24, bottom: 0 }}>
         <CartesianGrid strokeDasharray="3 3" stroke="#cbd5e1" />
-        <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#475569' }} axisLine={false} tickLine={false} />
+        <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#475569' }} axisLine={false} tickLine={false} interval={0} />
         <YAxis tick={{ fontSize: 11, fill: '#475569' }} axisLine={false} tickLine={false} allowDecimals={false} />
         <Tooltip
           contentStyle={{ borderRadius: 6, border: '1px solid #c7d2fe', fontSize: 11, boxShadow: '0 1px 3px rgba(0,0,0,.08)' }}
