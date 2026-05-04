@@ -121,19 +121,16 @@ export async function verifyToken(token: string): Promise<{ ok: boolean; error?:
   if (isJwt) headers['authorization'] = `Bearer ${token}`
   else headers['talexio-api-token'] = token
 
-  // Use pagedTimeLogs with today's date — same query pattern the cron + pull
-  // route use. Other queries (like `employees`) require a payroll context and
-  // would falsely report a working token as broken.
-  const today = new Date().toISOString().slice(0, 10)
+  // Use the `me` query — returns the current user without needing a payroll
+  // context (which `employees` and even `pagedTimeLogs` can require). A 401
+  // here means the token is genuinely expired/invalid; anything else is some
+  // other domain error and we should surface it.
   try {
     const res = await fetch(GQL_URL, {
       method: 'POST',
       headers,
       body: JSON.stringify({
-        query: `query TokenPing($params: TimeLogsFilterParams!, $pageNumber: Int!, $pageSize: Int!) {
-          pagedTimeLogs(params: $params, pageNumber: $pageNumber, pageSize: $pageSize) { totalCount }
-        }`,
-        variables: { params: { dateFrom: today, dateTo: today }, pageNumber: 0, pageSize: 1 },
+        query: `query TokenPing { me { id } }`,
       }),
       cache: 'no-store',
     })
