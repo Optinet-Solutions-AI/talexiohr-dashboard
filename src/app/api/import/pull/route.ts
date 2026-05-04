@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { getStoredToken } from '@/lib/talexio/token-store'
 // @ts-expect-error - tz-lookup has no types
 import tzLookup from 'tz-lookup'
 
@@ -75,13 +76,13 @@ function looksLikeJwt(t: string): boolean {
 }
 
 /**
- * Talexio GraphQL call. Uses the explicit `token` arg if given, else falls
- * back to the NEXT_PUBLIC_TALEXIOHR_TOKEN env var. Auto-detects JWT vs
- * legacy token format and sets the correct auth header.
+ * Talexio GraphQL call. Uses the explicit `token` arg if given. Otherwise
+ * the caller is expected to have resolved the token from the DB store
+ * before invoking this. Auto-detects JWT vs legacy token format.
  */
 function gqlFetch(token: string | null, query: string, variables: Record<string, unknown>) {
-  const actualToken = token ?? process.env.NEXT_PUBLIC_TALEXIOHR_TOKEN
-  if (!actualToken) throw new Error('No token provided and NEXT_PUBLIC_TALEXIOHR_TOKEN is not set')
+  const actualToken = token
+  if (!actualToken) throw new Error('No Talexio token available')
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -437,8 +438,21 @@ async function saveLeave(
 export async function POST(req: NextRequest) {
   try {
     const { dateFrom, dateTo, token: rawToken } = await req.json()
-    const token: string | null = rawToken?.trim() || null
+    let token: string | null = rawToken?.trim() || null
     if (!dateFrom || !dateTo) return NextResponse.json({ error: 'dateFrom and dateTo required' }, { status: 400 })
+
+    // Resolve token: explicit > DB store > env var. The store lets the UI
+    // rotate the token via /api/talexio/token without redeploying Vercel.
+    if (!token) {
+      const stored = await getStoredToken()
+      token = stored.token
+    }
+    if (!token) {
+      return NextResponse.json({
+        error: 'No Talexio token configured. Paste a fresh token via the Import page → Talexio Token panel.',
+        tokenRequired: true,
+      }, { status: 401 })
+    }
 
     // Cap at 31 days to stay under Vercel's 300s function timeout.
     // Larger ranges should be pulled in chunks.

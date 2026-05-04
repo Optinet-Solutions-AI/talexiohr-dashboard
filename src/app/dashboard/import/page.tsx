@@ -1,5 +1,6 @@
 import ImportUpload from '@/components/import/ImportUpload'
 import TalexioPull from '@/components/import/TalexioPull'
+import TalexioTokenStatus from '@/components/import/TalexioTokenStatus'
 import Reclassify from '@/components/import/Reclassify'
 import Dedupe from '@/components/import/Dedupe'
 import Cleanup from '@/components/import/Cleanup'
@@ -12,6 +13,8 @@ export default function ImportPage() {
         <h1 className="text-xl font-bold text-slate-800">Import Data</h1>
         <p className="text-xs text-slate-600 mt-0.5">Upload CSV/XLSX files from Talexio reports</p>
       </div>
+
+      <TalexioTokenStatus />
 
       <ImportUpload
         type="clockings"

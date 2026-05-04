@@ -1,21 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getStoredToken } from '@/lib/talexio/token-store'
 
 export const dynamic = 'force-dynamic'
 
 const API_URL = process.env.NEXT_PUBLIC_TALEXIOHR_API_URL!
-const API_TOKEN = process.env.NEXT_PUBLIC_TALEXIOHR_TOKEN!
 const API_DOMAIN = process.env.NEXT_PUBLIC_TALEXIOHR_CLIENT_DOMAIN!
 
 export async function GET(req: NextRequest) {
   const date = req.nextUrl.searchParams.get('date') || new Date().toISOString().slice(0, 10)
 
-  if (!API_TOKEN) return NextResponse.json({ error: 'NEXT_PUBLIC_TALEXIOHR_TOKEN not set' }, { status: 500 })
+  const stored = await getStoredToken()
+  const token = stored.token
+  if (!token) {
+    return NextResponse.json({
+      error: 'No Talexio token configured. Paste a fresh token via the Talexio Token panel above.',
+      tokenSource: stored.source,
+    }, { status: 500 })
+  }
 
   // Auto-detect JWT vs legacy token format
-  const isJwt = API_TOKEN.split('.').length === 3
+  const isJwt = token.split('.').length === 3
   const authHeaders: Record<string, string> = isJwt
-    ? { 'authorization': `Bearer ${API_TOKEN}` }
-    : { 'talexio-api-token': API_TOKEN }
+    ? { 'authorization': `Bearer ${token}` }
+    : { 'talexio-api-token': token }
 
   try {
     const res = await fetch(API_URL, {
@@ -47,6 +54,7 @@ export async function GET(req: NextRequest) {
     const ok = res.ok && !hasGqlErrors && !hasAuthError && !!json.data
 
     return NextResponse.json({
+      tokenSource: stored.source,
       authType: isJwt ? 'Bearer JWT' : 'talexio-api-token (legacy)',
       httpStatus: res.status,
       ok,
