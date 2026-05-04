@@ -157,15 +157,28 @@ export default function TalexioTokenStatus() {
 
         {showPaste && (
           <div className="rounded-md bg-slate-50 border border-slate-200 p-3 space-y-2">
-            <div className="text-xs text-slate-700 space-y-1">
-              <p className="font-medium">How to get a fresh token:</p>
-              <ol className="list-decimal list-inside space-y-0.5 text-slate-600">
-                <li>Open Talexio in your browser and log in (solve the captcha)</li>
-                <li>Open DevTools → Network tab</li>
-                <li>Click any page in Talexio that loads data</li>
-                <li>Find a request to <span className="font-mono">api.talexiohr.com/graphql</span></li>
-                <li>Copy the value of the <span className="font-mono">authorization</span> header (drop the <span className="font-mono">Bearer </span> prefix)</li>
-              </ol>
+            <div className="text-xs text-slate-700 space-y-2">
+              <p className="font-medium">How to get a fresh token (two options):</p>
+
+              <div>
+                <p className="font-medium text-slate-700">Option A — Talexio dashboard (preferred)</p>
+                <ol className="list-decimal list-inside space-y-0.5 text-slate-600 ml-1">
+                  <li>Log into Talexio (solve the captcha)</li>
+                  <li>Go to your access-token / API-token page in Talexio settings</li>
+                  <li>Generate or copy the access token</li>
+                  <li>Paste it below as-is — no <span className="font-mono">Bearer </span> prefix</li>
+                </ol>
+              </div>
+
+              <div>
+                <p className="font-medium text-slate-700">Option B — DevTools (fallback)</p>
+                <ol className="list-decimal list-inside space-y-0.5 text-slate-600 ml-1">
+                  <li>Log into Talexio, open DevTools → Network tab</li>
+                  <li>Click any page that loads data; find a request to <span className="font-mono">api.talexiohr.com/graphql</span></li>
+                  <li>Copy the <span className="font-mono">authorization</span> header value and drop the leading <span className="font-mono">Bearer </span></li>
+                </ol>
+              </div>
+
               <a href="https://roosterpartners.talexiohr.com" target="_blank" rel="noreferrer"
                 className="inline-flex items-center gap-1 text-indigo-600 hover:underline">
                 Open Talexio <ExternalLink size={10} />
