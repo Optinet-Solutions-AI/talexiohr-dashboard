@@ -126,16 +126,20 @@ export async function verifyToken(token: string): Promise<{ ok: boolean; error?:
   if (isJwt) headers['authorization'] = `Bearer ${token}`
   else headers['talexio-api-token'] = token
 
-  // Use the `me` query — returns the current user without needing a payroll
-  // context (which `employees` and even `pagedTimeLogs` can require). A 401
-  // here means the token is genuinely expired/invalid; anything else is some
-  // other domain error and we should surface it.
+  // Talexio enforces "must select a payroll" at the session level for most
+  // queries. The `payrolls` list query is a rare auth-only one (you have to
+  // list payrolls before you can pick one). If this returns data, the token
+  // is genuinely valid — any data-scoped query that still complains about
+  // payroll context is then a separate session/header issue, not a token
+  // problem.
+  const year = new Date().getUTCFullYear()
   try {
     const res = await fetch(GQL_URL, {
       method: 'POST',
       headers,
       body: JSON.stringify({
-        query: `query TokenPing { me { id } }`,
+        query: `query TokenPing($year: Int!) { payrolls(year: $year) { id } }`,
+        variables: { year },
       }),
       cache: 'no-store',
     })
