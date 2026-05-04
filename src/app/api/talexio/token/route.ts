@@ -1,13 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { saveStoredToken, verifyToken, getTokenStatus } from '@/lib/talexio/token-store'
+import { saveStoredToken, verifyToken, getTokenStatus, decodeJwtExpiry } from '@/lib/talexio/token-store'
 import { createClient as createServerClient } from '@/lib/supabase/server'
 
 export const dynamic = 'force-dynamic'
 
 /**
- * Save a new Talexio token. Validates against the live API before persisting
- * so the user gets immediate feedback if they pasted something stale or
- * malformed.
+ * Save a new Talexio token. Format-checks (JWT shape, decodable expiry) are
+ * hard gates; the live API ping is best-effort and reported back to the UI as
+ * a warning, not a rejection — Talexio's verification queries are stricter
+ * about session-level "select a payroll" than the cron's actual data queries,
+ * so a token can be perfectly valid for production use even if our probe
+ * returns a domain error.
  */
 export async function POST(req: NextRequest) {
   let body: { token?: string } = {}
@@ -21,14 +24,24 @@ export async function POST(req: NextRequest) {
   if (!token) return NextResponse.json({ error: 'token is required' }, { status: 400 })
   if (token.length < 20) return NextResponse.json({ error: 'token looks too short — paste the full JWT from Talexio' }, { status: 400 })
 
-  // Validate before saving — better to reject a bad paste than persist garbage
-  const check = await verifyToken(token)
-  if (!check.ok) {
-    return NextResponse.json({
-      error: `Token rejected by Talexio: ${check.error ?? 'unknown error'}`,
-      httpStatus: check.httpStatus,
-    }, { status: 400 })
+  // Format check: must be a JWT with a decodable expiry. Anything else is
+  // either malformed or already expired beyond what we can read.
+  const isJwt = token.split('.').length === 3
+  if (!isJwt) {
+    return NextResponse.json({ error: 'Token does not look like a JWT (expected three dot-separated parts)' }, { status: 400 })
   }
+  const expiry = decodeJwtExpiry(token)
+  if (!expiry) {
+    return NextResponse.json({ error: 'Could not decode an expiry from this JWT — make sure you copied the full token' }, { status: 400 })
+  }
+  if (expiry.getTime() < Date.now()) {
+    return NextResponse.json({ error: `This token already expired at ${expiry.toISOString()} — get a fresh one` }, { status: 400 })
+  }
+
+  // Best-effort live ping. We don't block on its result — Talexio's verifier
+  // queries can return "select payroll" even when the same token works fine
+  // for the cron's pagedTimeLogs path.
+  const liveCheck = await verifyToken(token)
 
   // Capture who pasted the token (for the audit trail). Auth is currently
   // disabled project-wide, so this is best-effort.
@@ -41,5 +54,6 @@ export async function POST(req: NextRequest) {
 
   const { expiresAt } = await saveStoredToken(token, updatedBy)
   const status = await getTokenStatus()
-  return NextResponse.json({ ok: true, expiresAt, status })
+  status.liveCheck = liveCheck
+  return NextResponse.json({ ok: true, expiresAt, liveCheck, status })
 }

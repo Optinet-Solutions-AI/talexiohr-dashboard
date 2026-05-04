@@ -15,10 +15,11 @@ export async function GET(req: NextRequest) {
   if (live && (status.state === 'valid' || status.state === 'unverified')) {
     const stored = await getStoredToken()
     if (stored.token) {
-      const check = await verifyToken(stored.token)
-      status.liveCheck = check
-      // Live check overrides stored expiry-based state
-      if (!check.ok && status.state === 'valid') status.state = 'expired'
+      status.liveCheck = await verifyToken(stored.token)
+      // Don't downgrade state on live-check failure: Talexio's verifier
+      // queries return "select payroll" even when the token works fine for
+      // the cron's actual data queries. The cron's success/failure (logged
+      // to sync_log) is the real signal — surfaced via SyncHealthBanner.
     }
   }
 

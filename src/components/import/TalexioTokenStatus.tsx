@@ -70,8 +70,12 @@ export default function TalexioTokenStatus() {
     }
   }
 
-  const isAlert = status && (status.state === 'expired' || status.state === 'missing' || (status.liveCheck && !status.liveCheck.ok))
-  const isValid = status && status.state === 'valid' && (!status.liveCheck || status.liveCheck.ok)
+  // Live-check failures are informational only — Talexio's probe queries can
+  // fail even when the token works fine for the cron. Real validity comes
+  // from the JWT-decoded expiry.
+  const isAlert = status && (status.state === 'expired' || status.state === 'missing')
+  const isValid = status && status.state === 'valid'
+  const liveCheckFailed = status?.liveCheck && !status.liveCheck.ok
 
   return (
     <div className={`bg-white rounded-lg border overflow-hidden ${isAlert ? 'border-red-300 ring-1 ring-red-200' : 'border-slate-200'}`}>
@@ -131,11 +135,14 @@ export default function TalexioTokenStatus() {
               </div>
             </div>
 
-            {status.liveCheck && !status.liveCheck.ok && (
-              <div className="rounded-md bg-red-50 p-2.5 text-xs text-red-700">
+            {liveCheckFailed && (
+              <div className="rounded-md bg-amber-50 border border-amber-200 p-2.5 text-xs text-amber-800">
                 <AlertTriangle size={12} className="inline mr-1" />
-                Live check failed: {status.liveCheck.error}
-                {status.liveCheck.httpStatus ? ` (HTTP ${status.liveCheck.httpStatus})` : ''}
+                Talexio probe returned a non-fatal error: {status.liveCheck!.error}
+                {status.liveCheck!.httpStatus ? ` (HTTP ${status.liveCheck!.httpStatus})` : ''}.
+                <span className="block mt-1 text-amber-700">
+                  This is informational only — the cron will still run with this token. The real signal is whether the next daily sync succeeds.
+                </span>
               </div>
             )}
 
