@@ -18,8 +18,9 @@ export interface TokenStatus {
 }
 
 /**
- * Decode the `exp` claim from a JWT. Returns null for non-JWT tokens or
- * malformed payloads.
+ * Decode the expiry from a JWT payload. Talexio uses a non-standard
+ * `expiryDate` (ISO string) instead of the RFC 7519 `exp` (Unix seconds), so
+ * we check both. Returns null for non-JWT tokens or malformed payloads.
  */
 export function decodeJwtExpiry(token: string): Date | null {
   const parts = token.split('.')
@@ -28,9 +29,13 @@ export function decodeJwtExpiry(token: string): Date | null {
     // base64url → base64
     const padded = parts[1].replace(/-/g, '+').replace(/_/g, '/')
     const decoded = Buffer.from(padded, 'base64').toString('utf8')
-    const payload = JSON.parse(decoded) as { exp?: number }
-    if (!payload.exp || typeof payload.exp !== 'number') return null
-    return new Date(payload.exp * 1000)
+    const payload = JSON.parse(decoded) as { exp?: number; expiryDate?: string }
+    if (typeof payload.expiryDate === 'string') {
+      const d = new Date(payload.expiryDate)
+      if (!isNaN(d.getTime())) return d
+    }
+    if (typeof payload.exp === 'number') return new Date(payload.exp * 1000)
+    return null
   } catch {
     return null
   }

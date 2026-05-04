@@ -42,3 +42,7 @@ yarn-error.log*
 next-env.d.ts
 .env.local
 .env*.local
+
+# Claude Code local settings — contains permission allowlist that may include
+# secrets pasted into approved commands. Never commit.
+.claude/settings.local.json
