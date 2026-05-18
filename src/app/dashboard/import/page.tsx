@@ -14,7 +14,9 @@ export default function ImportPage() {
         <p className="text-xs text-slate-600 mt-0.5">Upload CSV/XLSX files from Talexio reports</p>
       </div>
 
-      <TalexioTokenStatus />
+      <div id="talexio-token">
+        <TalexioTokenStatus />
+      </div>
 
       <ImportUpload
         type="clockings"

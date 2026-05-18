@@ -34,12 +34,12 @@ export default async function SyncHealthBanner() {
   const issues: { kind: string; message: string }[] = []
 
   if (tokenStatus.state === 'missing') {
-    issues.push({ kind: 'token', message: 'Talexio token is not configured. The daily sync cannot run.' })
+    issues.push({ kind: 'token', message: 'Talexio token is not configured. The daily sync cannot run. To fix: go to the Import page, scroll to the Talexio Token section, and paste a token from your Talexio settings.' })
   } else if (tokenStatus.state === 'expired') {
-    issues.push({ kind: 'token', message: 'Talexio token has expired. Paste a fresh one to resume daily syncs.' })
+    issues.push({ kind: 'token', message: 'Talexio token has expired. To fix: go to the Import page, click "Paste new token", and follow the instructions to copy a fresh token from your Talexio settings or browser.' })
   } else if (tokenExpiringSoon) {
     const hours = Math.max(0, Math.floor((tokenStatus.minutesRemaining ?? 0) / 60))
-    issues.push({ kind: 'token-soon', message: `Talexio token expires in ${hours}h. Replace it before the next cron run.` })
+    issues.push({ kind: 'token-soon', message: `Talexio token expires in ${hours}h. Go to the Import page and paste a fresh token before the next daily sync.` })
   }
 
   if (cronFailed && lastCron.data) {
@@ -62,9 +62,9 @@ export default async function SyncHealthBanner() {
           <ul className={`text-xs space-y-0.5 ${isWarning ? 'text-amber-800' : 'text-red-800'}`}>
             {issues.map((issue, i) => <li key={i}>• {issue.message}</li>)}
           </ul>
-          <Link href="/dashboard/import"
+          <Link href="/dashboard/import#talexio-token"
             className={`inline-block mt-1 text-xs font-medium underline ${isWarning ? 'text-amber-900 hover:text-amber-700' : 'text-red-900 hover:text-red-700'}`}>
-            Open Import page →
+            Go to Import page → Talexio Token section
           </Link>
         </div>
       </div>
