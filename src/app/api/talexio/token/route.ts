@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { revalidatePath } from 'next/cache'
 import { saveStoredToken, verifyToken, getTokenStatus, decodeJwtExpiry } from '@/lib/talexio/token-store'
 import { createClient as createServerClient } from '@/lib/supabase/server'
 
@@ -55,5 +56,6 @@ export async function POST(req: NextRequest) {
   const { expiresAt } = await saveStoredToken(token, updatedBy)
   const status = await getTokenStatus()
   status.liveCheck = liveCheck
+  revalidatePath('/dashboard', 'layout')
   return NextResponse.json({ ok: true, expiresAt, liveCheck, status })
 }

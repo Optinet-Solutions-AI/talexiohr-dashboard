@@ -42,9 +42,11 @@ export default async function SyncHealthBanner() {
     issues.push({ kind: 'token-soon', message: `Talexio token expires in ${hours}h. Go to the Import page and paste a fresh token before the next daily sync.` })
   }
 
+  const tokenIssuePresent = tokenStatus.state === 'missing' || tokenStatus.state === 'expired'
   if (cronFailed && lastCron.data) {
     const when = new Date(lastCron.data.created_at).toLocaleString()
-    issues.push({ kind: 'cron', message: `Last automated sync (${when}) failed: ${lastCron.data.error ?? 'unknown error'}` })
+    const suffix = tokenIssuePresent ? ' (likely caused by the expired token above — fix the token first)' : ''
+    issues.push({ kind: 'cron', message: `Last automated sync (${when}) failed: ${lastCron.data.error ?? 'unknown error'}${suffix}` })
   }
 
   if (issues.length === 0) return null

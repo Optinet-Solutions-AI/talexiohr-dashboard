@@ -1,6 +1,8 @@
 import Sidebar from '@/components/Sidebar'
 import SyncHealthBanner from '@/components/SyncHealthBanner'
 
+export const dynamic = 'force-dynamic'
+
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex h-screen bg-slate-50">
