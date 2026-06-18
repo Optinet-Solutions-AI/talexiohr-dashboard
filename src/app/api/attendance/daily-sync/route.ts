@@ -58,6 +58,16 @@ async function runSync(req: Request) {
     })
     const data = await res.json()
 
+    // After clockings/leave, refresh employee country + termination status.
+    const detailsUrl = `${protocol}://${host}/api/employees/sync-details`
+    let employeeDetails: unknown = null
+    try {
+      const dres = await fetch(detailsUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' } })
+      employeeDetails = await dres.json()
+    } catch (err) {
+      employeeDetails = { ok: false, error: err instanceof Error ? err.message : 'sync-details failed' }
+    }
+
     // Log this run for visibility
     await supabase.from('sync_log').insert({
       sync_date: dateStr,
@@ -73,6 +83,7 @@ async function runSync(req: Request) {
       pullUrl,
       syncedDate: dateStr,
       result: data,
+      employeeDetails,
       startedAt,
       finishedAt: new Date().toISOString(),
     })
