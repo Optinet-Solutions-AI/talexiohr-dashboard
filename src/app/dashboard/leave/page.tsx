@@ -1,25 +1,39 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { format, subDays } from 'date-fns'
+import StatsFilterBar from '@/components/filters/StatsFilterBar'
+import { parseFilters, selectEmployees, groupCounts, type FilterableEmployee } from '@/lib/filters/employeeFilter'
 
 export const dynamic = 'force-dynamic'
 
-export default async function LeavePage() {
+interface PageProps { searchParams: Promise<{ employees?: string; locations?: string; terminated?: string }> }
+
+export default async function LeavePage({ searchParams }: PageProps) {
+  const sp = await searchParams
   const supabase = createAdminClient()
   const to   = format(new Date(), 'yyyy-MM-dd')
   const from = format(subDays(new Date(), 29), 'yyyy-MM-dd')
 
-  // Get active employee IDs to filter out excluded
-  const { data: activeEmps } = await supabase.from('employees').select('id').eq('excluded', false)
-  const activeIds = (activeEmps ?? []).map(e => e.id)
+  const { data: employeesRaw } = await supabase
+    .from('employees')
+    .select('id, full_name, country, is_terminated, excluded')
+    .order('last_name')
+  const allEmployees = (employeesRaw ?? []) as FilterableEmployee[]
+  const filters = parseFilters(sp)
+  const effective = selectEmployees(allEmployees, filters)
+  const effectiveIds = effective.length ? effective.map(e => e.id) : ['__none__']
+  const counts = groupCounts(allEmployees, filters.includeTerminated)
+  const pickable = allEmployees
+    .filter(e => !e.excluded && (filters.includeTerminated || !e.is_terminated))
+    .map(e => ({ id: e.id, full_name: e.full_name }))
 
   const { data: records } = await supabase
     .from('attendance_records')
     .select('id, date, status, comments, hours_worked, employees!inner(id, full_name, unit)')
-    .in('status', ['vacation', 'sick']).in('employee_id', activeIds).gte('date', from).lte('date', to)
+    .in('status', ['vacation', 'sick']).in('employee_id', effectiveIds).gte('date', from).lte('date', to)
     .order('date', { ascending: false })
 
   const { data: summary } = await supabase
-    .from('attendance_records').select('status').in('status', ['vacation', 'sick']).in('employee_id', activeIds).gte('date', from).lte('date', to)
+    .from('attendance_records').select('status').in('status', ['vacation', 'sick']).in('employee_id', effectiveIds).gte('date', from).lte('date', to)
 
   const vacationDays = summary?.filter(r => r.status === 'vacation').length ?? 0
   const sickDays     = summary?.filter(r => r.status === 'sick').length ?? 0
@@ -29,6 +43,16 @@ export default async function LeavePage() {
       <div>
         <h1 className="text-xl font-bold text-slate-800">Leave</h1>
         <p className="text-xs text-slate-600 mt-0.5">Last 30 days · {from} → {to}</p>
+      </div>
+
+      <div className="bg-white rounded-lg border border-slate-200 p-3">
+        <StatsFilterBar
+          employees={pickable}
+          selectedEmployees={filters.employeeIds}
+          locations={filters.locations}
+          counts={counts}
+          includeTerminated={filters.includeTerminated}
+        />
       </div>
 
       <div className="grid grid-cols-3 gap-3">
