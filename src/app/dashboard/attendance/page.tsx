@@ -3,13 +3,14 @@ import { format } from 'date-fns'
 import StatCards from '@/components/attendance/StatCards'
 import AttendanceFilters from '@/components/attendance/AttendanceFilters'
 import StatusBadge from '@/components/attendance/StatusBadge'
+import { parseFilters, selectEmployees, groupCounts, type FilterableEmployee } from '@/lib/filters/employeeFilter'
 
 export const dynamic = 'force-dynamic'
 
 const PAGE_SIZE = 20
 
 interface PageProps {
-  searchParams: Promise<{ from?: string; to?: string; employee?: string; status?: string; page?: string }>
+  searchParams: Promise<{ from?: string; to?: string; employees?: string; locations?: string; terminated?: string; status?: string; page?: string }>
 }
 
 export default async function AttendancePage({ searchParams }: PageProps) {
@@ -17,14 +18,24 @@ export default async function AttendancePage({ searchParams }: PageProps) {
   const today  = format(new Date(), 'yyyy-MM-dd')
   const from   = sp.from     ?? today
   const to     = sp.to       ?? today
-  const empId  = sp.employee ?? ''
   const status = sp.status   ?? ''
   const page   = parseInt(sp.page ?? '1')
   const offset = (page - 1) * PAGE_SIZE
 
   const supabase = createAdminClient()
 
-  const { data: employees } = await supabase.from('employees').select('id, full_name').eq('excluded', false).order('last_name')
+  const { data: employeesRaw } = await supabase
+    .from('employees')
+    .select('id, full_name, country, is_terminated, excluded')
+    .order('last_name')
+  const allEmployees = (employeesRaw ?? []) as FilterableEmployee[]
+  const filters = parseFilters(sp)
+  const effective = selectEmployees(allEmployees, filters)
+  const effectiveIds = effective.map(e => e.id)
+  const counts = groupCounts(allEmployees, filters.includeTerminated)
+  const pickable = allEmployees
+    .filter(e => !e.excluded && (filters.includeTerminated || !e.is_terminated))
+    .map(e => ({ id: e.id, full_name: e.full_name }))
 
   let query = supabase
     .from('attendance_records')
@@ -33,16 +44,18 @@ export default async function AttendancePage({ searchParams }: PageProps) {
     .order('date', { ascending: false })
     .order('employees(last_name)', { ascending: true })
     .range(offset, offset + PAGE_SIZE - 1)
-  if (empId)  query = query.eq('employee_id', empId)
+  query = query.in('employee_id', effectiveIds.length ? effectiveIds : ['__none__'])
   if (status) query = query.eq('status', status)
 
   const { data: records, count } = await query
 
   const { data: statsData } = await supabase
-    .from('attendance_records').select('status').gte('date', from).lte('date', to).then(r => r)
+    .from('attendance_records').select('status')
+    .in('employee_id', effectiveIds.length ? effectiveIds : ['__none__'])
+    .gte('date', from).lte('date', to).then(r => r)
 
   const stats = {
-    total:    employees?.length ?? 0,
+    total:    effective.length,
     office:   statsData?.filter(r => r.status === 'office').length ?? 0,
     wfh:      statsData?.filter(r => r.status === 'wfh').length ?? 0,
     remote:   statsData?.filter(r => r.status === 'remote').length ?? 0,
@@ -67,7 +80,7 @@ export default async function AttendancePage({ searchParams }: PageProps) {
       <StatCards stats={stats} />
 
       <div className="bg-white rounded-lg border border-slate-200 p-3">
-        <AttendanceFilters employees={employees ?? []} />
+        <AttendanceFilters employees={pickable} counts={counts} />
       </div>
 
       <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
@@ -138,7 +151,13 @@ export default async function AttendancePage({ searchParams }: PageProps) {
         )}
 
         {totalPages > 1 && (() => {
-          const baseHref = `?from=${from}&to=${to}${empId ? `&employee=${empId}` : ''}${status ? `&status=${status}` : ''}`
+          const carry = new URLSearchParams()
+          carry.set('from', from); carry.set('to', to)
+          if (filters.employeeIds.length) carry.set('employees', filters.employeeIds.join(','))
+          if (filters.locations.length) carry.set('locations', filters.locations.join(','))
+          if (filters.includeTerminated) carry.set('terminated', '1')
+          if (status) carry.set('status', status)
+          const baseHref = `?${carry.toString()}`
           const startPage = Math.max(1, page - 2)
           const endPage = Math.min(totalPages, startPage + 4)
           const pages = Array.from({ length: endPage - startPage + 1 }, (_, i) => startPage + i)
