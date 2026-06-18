@@ -2,7 +2,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { format, startOfMonth, endOfMonth, endOfWeek, eachWeekOfInterval, eachDayOfInterval, getDay } from 'date-fns'
 import ComplianceFilters from '@/components/compliance/ComplianceFilters'
 import StatsFilterBar from '@/components/filters/StatsFilterBar'
-import { parseFilters, selectEmployees, groupCounts, type FilterableEmployee } from '@/lib/filters/employeeFilter'
+import { parseFilters, selectEmployees, groupCounts } from '@/lib/filters/employeeFilter'
 
 export const dynamic = 'force-dynamic'
 
