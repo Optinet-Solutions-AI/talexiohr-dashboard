@@ -49,9 +49,9 @@ export default function AskSearch() {
     recognitionRef.current = recognition
 
     recognition.onresult = (event: { results: { [key: number]: { transcript: string }; isFinal: boolean; length: number }[] }) => {
-      const transcript = Array.from(event.results).map((r: any) => r[0].transcript).join('')
+      const transcript = Array.from(event.results).map((r: { [key: number]: { transcript: string } }) => r[0].transcript).join('')
       setQuery(transcript)
-      if ((event.results[0] as any)?.isFinal) {
+      if (event.results[0]?.isFinal) {
         setListening(false)
         // Wait 2 seconds before auto-submitting so the user can review
         // the transcription and cancel if needed (click search or hit Enter

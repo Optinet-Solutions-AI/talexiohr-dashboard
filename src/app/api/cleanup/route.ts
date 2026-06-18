@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { graphqlUrl } from '@/lib/talexio/url'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300
@@ -18,7 +19,7 @@ const DOMAIN = 'roosterpartners.talexiohr.com'
  */
 export async function POST() {
   const apiToken = process.env.NEXT_PUBLIC_TALEXIOHR_TOKEN
-  const apiUrl = process.env.NEXT_PUBLIC_TALEXIOHR_API_URL ?? 'https://api.talexiohr.com/graphql'
+  const apiUrl = graphqlUrl()
   if (!apiToken) {
     return NextResponse.json({ error: 'NEXT_PUBLIC_TALEXIOHR_TOKEN not set' }, { status: 500 })
   }
@@ -56,7 +57,8 @@ export async function POST() {
   const localList = localEmps ?? []
 
   // 3. Match and backfill talexio_id
-  let matched = 0, updated = 0, alreadySet = 0, unmatched: string[] = []
+  let matched = 0, updated = 0, alreadySet = 0
+  const unmatched: string[] = []
 
   for (const local of localList) {
     const localName = (local.full_name ?? '').toLowerCase().trim().replace(/\s+/g, ' ')

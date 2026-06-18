@@ -1,4 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/admin'
+import { graphqlUrl } from './url'
 
 export interface TokenStatus {
   /** "valid" | "expired" | "missing" | "unverified" */
@@ -108,7 +109,6 @@ export async function getTokenStatus(): Promise<TokenStatus> {
   }
 }
 
-const GQL_URL = process.env.NEXT_PUBLIC_TALEXIOHR_API_URL ?? 'https://api.talexiohr.com/graphql'
 const DOMAIN = process.env.NEXT_PUBLIC_TALEXIOHR_CLIENT_DOMAIN ?? 'roosterpartners.talexiohr.com'
 
 /**
@@ -134,7 +134,7 @@ export async function verifyToken(token: string): Promise<{ ok: boolean; error?:
   // problem.
   const year = new Date().getUTCFullYear()
   try {
-    const res = await fetch(GQL_URL, {
+    const res = await fetch(graphqlUrl(), {
       method: 'POST',
       headers,
       body: JSON.stringify({

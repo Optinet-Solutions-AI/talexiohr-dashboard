@@ -1,4 +1,5 @@
-const API_URL    = process.env.NEXT_PUBLIC_TALEXIOHR_API_URL!
+import { graphqlUrl } from './url'
+
 const API_TOKEN  = process.env.NEXT_PUBLIC_TALEXIOHR_TOKEN!
 const API_DOMAIN = process.env.NEXT_PUBLIC_TALEXIOHR_CLIENT_DOMAIN!
 
@@ -22,7 +23,7 @@ export async function talexioQuery<T = unknown>({ query, variables }: TalexioQue
     headers['payroll-id'] = PAYROLL_ID
   }
 
-  const res = await fetch(API_URL, {
+  const res = await fetch(graphqlUrl(), {
     method: 'POST',
     headers,
     body: JSON.stringify({ query, variables }),

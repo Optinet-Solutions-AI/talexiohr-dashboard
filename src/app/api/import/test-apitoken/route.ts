@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getStoredToken } from '@/lib/talexio/token-store'
+import { graphqlUrl } from '@/lib/talexio/url'
 
 export const dynamic = 'force-dynamic'
 
-const API_URL = process.env.NEXT_PUBLIC_TALEXIOHR_API_URL!
 const API_DOMAIN = process.env.NEXT_PUBLIC_TALEXIOHR_CLIENT_DOMAIN!
 
 export async function GET(req: NextRequest) {
@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
     : { 'talexio-api-token': token }
 
   try {
-    const res = await fetch(API_URL, {
+    const res = await fetch(graphqlUrl(), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

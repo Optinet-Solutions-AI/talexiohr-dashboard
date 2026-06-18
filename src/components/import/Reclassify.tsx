@@ -34,7 +34,7 @@ export default function Reclassify() {
       <div className="px-4 py-3 border-b border-slate-100">
         <h2 className="text-sm font-semibold text-slate-800">Reclassify Existing Data</h2>
         <p className="text-xs text-slate-600 mt-0.5">
-          Re-applies status logic to existing records using employee group. Malta Office employees not at office → WFH. Also generates "No Clocking" records for missing workdays.
+          Re-applies status logic to existing records using employee group. Malta Office employees not at office → WFH. Also generates &quot;No Clocking&quot; records for missing workdays.
         </p>
       </div>
       <div className="p-4 space-y-3">
