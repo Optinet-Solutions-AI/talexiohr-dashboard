@@ -17,6 +17,9 @@
     },
     "src/app/api/cleanup/route.ts": {
       "maxDuration": 300
+    },
+    "src/app/api/employees/sync-details/route.ts": {
+      "maxDuration": 300
     }
   }
 }
