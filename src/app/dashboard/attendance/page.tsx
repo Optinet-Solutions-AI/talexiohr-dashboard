@@ -32,6 +32,7 @@ export default async function AttendancePage({ searchParams }: PageProps) {
   const filters = parseFilters(sp)
   const effective = selectEmployees(allEmployees, filters)
   const effectiveIds = effective.map(e => e.id)
+  const empScope = effectiveIds.length ? effectiveIds : ['__none__']
   const counts = groupCounts(allEmployees, filters.includeTerminated)
   const pickable = allEmployees
     .filter(e => !e.excluded && (filters.includeTerminated || !e.is_terminated))
@@ -44,23 +45,38 @@ export default async function AttendancePage({ searchParams }: PageProps) {
     .order('date', { ascending: false })
     .order('employees(last_name)', { ascending: true })
     .range(offset, offset + PAGE_SIZE - 1)
-  query = query.in('employee_id', effectiveIds.length ? effectiveIds : ['__none__'])
+  query = query.in('employee_id', empScope)
   if (status) query = query.eq('status', status)
 
   const { data: records, count } = await query
 
-  const { data: statsData } = await supabase
-    .from('attendance_records').select('status')
-    .in('employee_id', effectiveIds.length ? effectiveIds : ['__none__'])
-    .gte('date', from).lte('date', to).then(r => r)
+  // Count per status with head-only count queries — these are not subject to
+  // PostgREST's default 1000-row response cap, so the stat cards stay accurate
+  // for wide date ranges / large employee sets.
+  const countStatus = async (s: string) => {
+    const { count } = await supabase
+      .from('attendance_records')
+      .select('id', { count: 'exact', head: true })
+      .in('employee_id', empScope)
+      .gte('date', from).lte('date', to)
+      .eq('status', s)
+    return count ?? 0
+  }
+  const [office, wfh, remote, absent, vacation] = await Promise.all([
+    countStatus('office'),
+    countStatus('wfh'),
+    countStatus('remote'),
+    countStatus('no_clocking'),
+    countStatus('vacation'),
+  ])
 
   const stats = {
     total:    effective.length,
-    office:   statsData?.filter(r => r.status === 'office').length ?? 0,
-    wfh:      statsData?.filter(r => r.status === 'wfh').length ?? 0,
-    remote:   statsData?.filter(r => r.status === 'remote').length ?? 0,
-    absent:   statsData?.filter(r => r.status === 'no_clocking').length ?? 0,
-    vacation: statsData?.filter(r => r.status === 'vacation').length ?? 0,
+    office,
+    wfh,
+    remote,
+    absent,
+    vacation,
   }
 
   const totalPages = Math.ceil((count ?? 0) / PAGE_SIZE)
