@@ -1,8 +1,10 @@
 'use client'
 
-import { useRouter } from 'next/navigation'
-import { useState, useEffect, useRef } from 'react'
-import { Search, X, ChevronLeft, ChevronRight } from 'lucide-react'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { useState } from 'react'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
+import StatsFilterBar from '@/components/filters/StatsFilterBar'
+import { parseFilters, type LocationGroup } from '@/lib/filters/employeeFilter'
 
 type Period = 'daily' | 'weekly' | 'monthly' | 'yearly'
 
@@ -57,37 +59,31 @@ function rangeLabel(period: Period, from: string, to: string): string {
   }
 }
 
-export default function DashboardFilters({ employees, defaults }: { employees: Employee[]; defaults: { from: string; to: string; period: string; employee: string } }) {
+export default function DashboardFilters({ employees, counts, defaults }: {
+  employees: Employee[]
+  counts: Record<LocationGroup, number>
+  defaults: { from: string; to: string; period: string }
+}) {
   const router = useRouter()
+  const params = useSearchParams()
   const [period, setPeriod] = useState<Period>(defaults.period as Period)
   const [from, setFrom] = useState(defaults.from)
   const [to, setTo] = useState(defaults.to)
-  const [empId, setEmpId] = useState(defaults.employee)
-  const [search, setSearch] = useState('')
-  const [open, setOpen] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
 
-  useEffect(() => {
-    const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false) }
-    document.addEventListener('mousedown', h); return () => document.removeEventListener('mousedown', h)
-  }, [])
-
-  function nav(f: string, t: string, p: Period, e: string) {
-    const q = new URLSearchParams(); q.set('from', f); q.set('to', t); q.set('period', p); if (e) q.set('employee', e)
-    router.push(`/dashboard?${q.toString()}`)
+  function nav(f: string, t: string, p: Period) {
+    const cur = new URLSearchParams(params.toString())
+    cur.set('from', f); cur.set('to', t); cur.set('period', p)
+    router.push(`/dashboard?${cur.toString()}`)
   }
-
-  function changePeriod(p: Period) { const [f, t] = rangeForPeriod(p, new Date()); setPeriod(p); setFrom(f); setTo(t); nav(f, t, p, empId) }
+  function changePeriod(p: Period) { const [f, t] = rangeForPeriod(p, new Date()); setPeriod(p); setFrom(f); setTo(t); nav(f, t, p) }
   function step(dir: 1 | -1) {
     const anchor = stepPeriod(period, from, dir); const today = new Date(); today.setHours(0, 0, 0, 0)
     if (dir === 1 && anchor > today) return
-    const [f, t] = rangeForPeriod(period, anchor); setFrom(f); setTo(t); nav(f, t, period, empId)
+    const [f, t] = rangeForPeriod(period, anchor); setFrom(f); setTo(t); nav(f, t, period)
   }
-  function changeEmp(id: string) { setEmpId(id); setSearch(''); setOpen(false); nav(from, to, period, id) }
 
+  const pf = parseFilters(Object.fromEntries(params))
   const canNext = (() => { const a = stepPeriod(period, from, 1); const t = new Date(); t.setHours(0, 0, 0, 0); return a <= t })()
-  const selectedName = employees.find(e => e.id === empId)?.full_name
-  const filtered = search ? employees.filter(e => e.full_name.toLowerCase().includes(search.toLowerCase())) : employees
 
   return (
     <div className="bg-white rounded-lg border border-slate-200 p-3 space-y-3">
@@ -111,37 +107,23 @@ export default function DashboardFilters({ employees, defaults }: { employees: E
         <button onClick={() => changePeriod(period)} className="text-xs text-slate-600 hover:text-slate-600">Today</button>
       </div>
 
-      {/* Row 2: date pickers + employee */}
+      {/* Row 2: date pickers */}
       <div className="flex flex-wrap items-center gap-2">
-        <input type="date" value={from} onChange={e => { setFrom(e.target.value); nav(e.target.value, to, period, empId) }}
+        <input type="date" value={from} onChange={e => { setFrom(e.target.value); nav(e.target.value, to, period) }}
           className="rounded-md border border-slate-200 px-2 py-1.5 text-xs text-slate-600 focus:outline-none focus:ring-1 focus:ring-slate-400" />
         <span className="text-xs text-slate-500">to</span>
-        <input type="date" value={to} onChange={e => { setTo(e.target.value); nav(from, e.target.value, period, empId) }}
+        <input type="date" value={to} onChange={e => { setTo(e.target.value); nav(from, e.target.value, period) }}
           className="rounded-md border border-slate-200 px-2 py-1.5 text-xs text-slate-600 focus:outline-none focus:ring-1 focus:ring-slate-400" />
-
-        <div className="flex-1" />
-
-        {/* Employee search */}
-        <div className="relative w-full sm:w-auto" ref={ref}>
-          <div onClick={() => setOpen(true)}
-            className="flex items-center gap-2 rounded-md border border-slate-200 px-2.5 py-1.5 text-xs text-slate-600 cursor-pointer sm:min-w-[200px] hover:border-slate-300 focus-within:ring-1 focus-within:ring-slate-400">
-            <Search size={12} className="text-slate-500 shrink-0" />
-            {open
-              ? <input autoFocus value={search} onChange={e => setSearch(e.target.value)} placeholder="Search..." className="flex-1 outline-none text-xs bg-transparent" />
-              : <span className={`flex-1 truncate ${selectedName ? 'text-slate-700' : 'text-slate-500'}`}>{selectedName ?? 'All employees'}</span>}
-            {empId && <button onClick={e => { e.stopPropagation(); changeEmp('') }} className="text-slate-500 hover:text-slate-500"><X size={12} /></button>}
-          </div>
-          {open && (
-            <div className="absolute top-full left-0 right-0 mt-1 bg-white rounded-md border border-slate-200 shadow-md z-50 max-h-56 overflow-y-auto">
-              <button onClick={() => changeEmp('')} className={`w-full text-left px-3 py-2 text-xs hover:bg-slate-50 ${!empId ? 'font-medium text-slate-800' : 'text-slate-500'}`}>All employees</button>
-              {filtered.map(emp => (
-                <button key={emp.id} onClick={() => changeEmp(emp.id)} className={`w-full text-left px-3 py-2 text-xs hover:bg-slate-50 ${empId === emp.id ? 'font-medium text-indigo-700 bg-indigo-50' : 'text-gray-600'}`}>{emp.full_name}</button>
-              ))}
-              {filtered.length === 0 && <p className="px-3 py-2 text-xs text-slate-500 text-center">No matches</p>}
-            </div>
-          )}
-        </div>
       </div>
+
+      {/* Row 3: employee / location / terminated filters */}
+      <StatsFilterBar
+        employees={employees}
+        selectedEmployees={pf.employeeIds}
+        locations={pf.locations}
+        counts={counts}
+        includeTerminated={pf.includeTerminated}
+      />
     </div>
   )
 }

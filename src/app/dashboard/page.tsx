@@ -4,6 +4,7 @@ import DailyAttendanceChart, { type DayData } from '@/components/dashboard/Daily
 import StatusDonutChart, { type StatusSlice } from '@/components/dashboard/StatusDonutChart'
 import AttendanceGrid, { type GridEmployee } from '@/components/dashboard/AttendanceGrid'
 import DashboardFilters from '@/components/dashboard/DashboardFilters'
+import { parseFilters, selectEmployees, groupCounts, type FilterableEmployee } from '@/lib/filters/employeeFilter'
 
 export const dynamic = 'force-dynamic'
 
@@ -24,7 +25,9 @@ interface PageProps {
     from?: string
     to?: string
     period?: string
-    employee?: string
+    employees?: string
+    locations?: string
+    terminated?: string
   }>
 }
 
@@ -109,7 +112,6 @@ export default async function DashboardPage({ searchParams }: PageProps) {
 
   const today = format(new Date(), 'yyyy-MM-dd')
   const period = sp.period ?? 'daily'
-  const empFilter = sp.employee ?? ''
 
   // Default: last 7 days (today minus 6 → today)
   const defaultFrom = (() => {
@@ -128,20 +130,29 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   const from = sp.from ?? defaultFrom
   const to   = sp.to ?? today
 
-  const { data: employees } = await supabase.from('employees').select('id, full_name').eq('excluded', false).order('last_name')
+  const { data: employeesRaw } = await supabase
+    .from('employees')
+    .select('id, full_name, country, is_terminated, excluded')
+    .order('last_name')
+  const allEmployees = (employeesRaw ?? []) as FilterableEmployee[]
 
-  let query = supabase
+  const filters = parseFilters(sp)
+  const effective = selectEmployees(allEmployees, filters)
+  const effectiveIds = effective.map(e => e.id)
+  const counts = groupCounts(allEmployees, filters.includeTerminated)
+
+  const { data: records } = await supabase
     .from('attendance_records')
     .select('*, employees!inner(id, full_name)')
-    .gte('date', from).lte('date', to).order('date')
-  if (empFilter) query = query.eq('employee_id', empFilter)
-  const { data: records } = await query
+    .gte('date', from).lte('date', to)
+    .in('employee_id', effectiveIds.length ? effectiveIds : ['__none__'])
+    .order('date')
 
   const recs: RecordRow[] = (records ?? []) as RecordRow[]
-  const emps = employees ?? []
+  const emps = effective
 
   const count = (s: string) => recs.filter(r => r.status === s).length
-  const empCount = empFilter ? emps.filter(e => e.id === empFilter).length : emps.length
+  const empCount = emps.length
 
   // Broken clocking sub-types
   const brokenNoClockOut = recs.filter(r => (r.status === 'broken' || r.status === 'active') && r.time_in && !r.time_out).length
@@ -187,7 +198,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     start: new Date(from + 'T00:00:00'),
     end: new Date(to + 'T00:00:00'),
   }).map(d => format(d, 'yyyy-MM-dd'))
-  const gridEmps = empFilter ? emps.filter(e => e.id === empFilter) : emps
+  const gridEmps = emps
   const gridEmployees: GridEmployee[] = gridEmps.map(emp => {
     const empRecords = recs.filter(r => { const e = Array.isArray(r.employees) ? r.employees[0] : r.employees; return e?.id === emp.id })
     const days = empRecords.map(r => {
@@ -215,8 +226,12 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     }
   })
 
-  const selectedEmpName = empFilter ? emps.find(e => e.id === empFilter)?.full_name : null
+  const selectedEmpName = filters.employeeIds.length === 1 ? emps.find(e => e.id === filters.employeeIds[0])?.full_name : null
   const periodLabel = period === 'daily' ? 'Daily' : period === 'weekly' ? 'Weekly' : period === 'monthly' ? 'Monthly' : 'Yearly'
+
+  const pickable = allEmployees
+    .filter(e => !e.excluded && (filters.includeTerminated || !e.is_terminated))
+    .map(e => ({ id: e.id, full_name: e.full_name }))
 
   return (
     <div className="space-y-5 max-w-7xl mx-auto">
@@ -225,7 +240,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
         <p className="text-xs text-slate-600 mt-0.5">Attendance overview</p>
       </div>
 
-      <DashboardFilters employees={emps} defaults={{ from, to, period, employee: empFilter }} />
+      <DashboardFilters employees={pickable} counts={counts} defaults={{ from, to, period }} />
 
       {/* Stat cards */}
       <div className="grid grid-cols-4 sm:grid-cols-8 gap-3">
