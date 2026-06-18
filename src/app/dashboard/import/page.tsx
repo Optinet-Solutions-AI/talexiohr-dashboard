@@ -5,6 +5,7 @@ import Reclassify from '@/components/import/Reclassify'
 import Dedupe from '@/components/import/Dedupe'
 import Cleanup from '@/components/import/Cleanup'
 import RunSyncNow from '@/components/import/RunSyncNow'
+import SyncEmployeeDetails from '@/components/import/SyncEmployeeDetails'
 
 export default function ImportPage() {
   return (
@@ -44,6 +45,8 @@ export default function ImportPage() {
       <TalexioPull />
 
       <RunSyncNow />
+
+      <SyncEmployeeDetails />
 
       <Cleanup />
     </div>
