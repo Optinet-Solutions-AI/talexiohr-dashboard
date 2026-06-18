@@ -1,16 +1,18 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { format, startOfMonth, endOfMonth, endOfWeek, eachWeekOfInterval, eachDayOfInterval, getDay } from 'date-fns'
 import ComplianceFilters from '@/components/compliance/ComplianceFilters'
+import StatsFilterBar from '@/components/filters/StatsFilterBar'
+import { parseFilters, selectEmployees, groupCounts, type FilterableEmployee } from '@/lib/filters/employeeFilter'
 
 export const dynamic = 'force-dynamic'
 
-interface PageProps { searchParams: Promise<{ month?: string }> }
+interface PageProps { searchParams: Promise<{ month?: string; employees?: string; terminated?: string }> }
 
 const REQUIRED_OFFICE_DAYS = 4
 const MAX_WFH_MONDAYS = 1
 const MAX_WFH_FRIDAYS = 1
 
-type Emp = { id: string; full_name: string; group_type: string | null; unit: string | null }
+type Emp = { id: string; full_name: string; group_type: string | null; unit: string | null; country: string | null; is_terminated: boolean; excluded: boolean }
 type Rec = { employee_id: string; date: string; status: string }
 
 export default async function CompliancePage({ searchParams }: PageProps) {
@@ -24,10 +26,19 @@ export default async function CompliancePage({ searchParams }: PageProps) {
   const from = format(monthStart, 'yyyy-MM-dd')
   const to = format(monthEnd, 'yyyy-MM-dd')
 
-  const { data: employees } = await supabase.from('employees').select('id, full_name, group_type, unit').eq('group_type', 'office_malta').eq('excluded', false).order('last_name')
+  const { data: employees } = await supabase
+    .from('employees')
+    .select('id, full_name, group_type, unit, country, is_terminated, excluded')
+    .eq('group_type', 'office_malta').order('last_name')
   const { data: records } = await supabase.from('attendance_records').select('employee_id, date, status').gte('date', from).lte('date', to)
 
-  const emps: Emp[] = employees ?? []
+  const allMalta = (employees ?? []) as Emp[]
+  const filters = parseFilters(sp)
+  const emps: Emp[] = selectEmployees(allMalta, filters)
+  const counts = groupCounts(allMalta, filters.includeTerminated)
+  const pickable = allMalta
+    .filter(e => !e.excluded && (filters.includeTerminated || !e.is_terminated))
+    .map(e => ({ id: e.id, full_name: e.full_name }))
   const recs: Rec[] = records ?? []
   const cutoff = monthEnd > now ? now : monthEnd
   const workingDays = eachDayOfInterval({ start: monthStart, end: cutoff }).filter(d => { const day = getDay(d); return day >= 1 && day <= 5 })
@@ -68,7 +79,17 @@ export default async function CompliancePage({ searchParams }: PageProps) {
           <h1 className="text-xl font-bold text-slate-800">Compliance</h1>
           <p className="text-xs text-slate-600 mt-0.5">Malta Office · {format(monthStart, 'MMMM yyyy')}</p>
         </div>
-        <ComplianceFilters currentMonth={selectedMonth} />
+        <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+          <StatsFilterBar
+            employees={pickable}
+            selectedEmployees={filters.employeeIds}
+            locations={filters.locations}
+            counts={counts}
+            includeTerminated={filters.includeTerminated}
+            showLocation={false}
+          />
+          <ComplianceFilters currentMonth={selectedMonth} />
+        </div>
       </div>
 
       <div className="grid grid-cols-3 gap-3">
