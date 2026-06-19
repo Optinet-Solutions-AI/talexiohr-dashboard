@@ -30,13 +30,21 @@ describe('resolveCountry', () => {
 })
 
 describe('buildDetailUpdates', () => {
-  it('maps details to upsert rows', () => {
+  it('keys rows by employeeCode (the value local employees.talexio_id holds)', () => {
     expect(buildDetailUpdates([
-      { id: '1', isTerminated: false, positions: [pos({ endDate: null, isActive: true, country: { name: 'Malta' } })] },
-      { id: '2', isTerminated: true, positions: [] },
+      { id: '343484', employeeCode: 'Rewh01', isTerminated: false, positions: [pos({ endDate: null, isActive: true, country: { name: 'Malta' } })] },
+      { id: '365711', employeeCode: 'Alza01', isTerminated: true, positions: [] },
     ])).toEqual([
-      { talexio_id: '1', country: 'Malta', is_terminated: false },
-      { talexio_id: '2', country: null, is_terminated: true },
+      { talexio_id: 'Rewh01', country: 'Malta', is_terminated: false },
+      { talexio_id: 'Alza01', country: null, is_terminated: true },
+    ])
+  })
+  it('drops employees with no employeeCode (cannot match a local row)', () => {
+    expect(buildDetailUpdates([
+      { id: '1', employeeCode: null, isTerminated: true, positions: [] },
+      { id: '2', employeeCode: 'Bg01', isTerminated: false, positions: [pos({ endDate: null, country: { name: 'Bulgaria' } })] },
+    ])).toEqual([
+      { talexio_id: 'Bg01', country: 'Bulgaria', is_terminated: false },
     ])
   })
 })

@@ -10,6 +10,10 @@ export interface RawPosition {
 }
 export interface RawEmployeeDetail {
   id: string
+  /** Talexio employee code (e.g. "Rewh01"). This — NOT `id` (a numeric node id)
+   *  — is what the local employees.talexio_id column stores, because that column
+   *  is populated from pagedTimeLogs.employee.id, which returns the code. */
+  employeeCode: string | null
   isTerminated: boolean
   positions: RawPosition[]
 }
@@ -28,11 +32,15 @@ export function resolveCountry(positions: RawPosition[]): string | null {
 }
 
 export function buildDetailUpdates(details: RawEmployeeDetail[]): DetailUpdate[] {
-  return details.map(d => ({
-    talexio_id: d.id,
-    country: resolveCountry(d.positions),
-    is_terminated: d.isTerminated,
-  }))
+  // Match on employeeCode — that is what local employees.talexio_id holds.
+  // Employees without a code can't be matched to a local row, so drop them.
+  return details
+    .filter((d): d is RawEmployeeDetail & { employeeCode: string } => Boolean(d.employeeCode))
+    .map(d => ({
+      talexio_id: d.employeeCode,
+      country: resolveCountry(d.positions),
+      is_terminated: d.isTerminated,
+    }))
 }
 
 export async function fetchEmployeeDetails(token: string): Promise<RawEmployeeDetail[]> {
@@ -52,6 +60,7 @@ export async function fetchEmployeeDetails(token: string): Promise<RawEmployeeDe
       query: `query EmployeeDetails {
         employees {
           id
+          employeeCode
           isTerminated
           positions { ... on EmployeePosition { startDate endDate isActive country { name } } }
         }
