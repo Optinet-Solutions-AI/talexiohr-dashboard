@@ -1,20 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-
-const OFFICE_LAT = 35.9222072, OFFICE_LNG = 14.4878368, OFFICE_KM = 0.15
-
-function gpsKm(lat1: number, lng1: number, lat2: number, lng2: number) {
-  const R = 6371, dLat = (lat2 - lat1) * Math.PI / 180, dLng = (lng2 - lng1) * Math.PI / 180
-  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
-}
-function isOfficeGps(lat: number | null, lng: number | null) {
-  return lat != null && lng != null && !isNaN(lat) && !isNaN(lng) ? gpsKm(lat, lng, OFFICE_LAT, OFFICE_LNG) <= OFFICE_KM : false
-}
-function isOfficeName(n: string | null) {
-  if (!n) return false; const l = n.toLowerCase()
-  return l.includes('head office') || l === 'office' || l.includes('ta office')
-}
+import { isOfficeLocation, classifyClockedStatus } from '@/lib/attendance/location'
 
 /**
  * POST /api/import/reclassify
@@ -49,23 +35,13 @@ export async function POST(req: NextRequest) {
       const group = empGroup.get(r.employee_id) ?? 'unclassified'
       const isMalta = group === 'office_malta'
 
-      // Skip leave/sick — those are correct
-      if (r.status === 'vacation' || r.status === 'sick') { unchanged++; continue }
+      // Skip leave/sick and absent days — those are correct as-is.
+      if (r.status === 'vacation' || r.status === 'sick' || r.status === 'no_clocking') { unchanged++; continue }
 
-      // Keep broken/active as-is
-      if (r.status === 'broken' || r.status === 'active') { unchanged++; continue }
-
-      // Determine correct status
-      const atOffice = isOfficeName(r.location_in) || isOfficeName(r.location_out) || isOfficeGps(r.lat_in, r.lng_in) || isOfficeGps(r.lat_out, r.lng_out)
-
-      let newStatus: string
-      if (atOffice) {
-        newStatus = 'office'
-      } else if (isMalta) {
-        newStatus = 'wfh'
-      } else {
-        newStatus = 'remote'
-      }
+      // Classify by location: office if clock-in OR clock-out at office.
+      const inOffice = isOfficeLocation(r.location_in, r.lat_in, r.lng_in)
+      const outOffice = isOfficeLocation(r.location_out, r.lat_out, r.lng_out)
+      const newStatus: string = classifyClockedStatus({ inOffice, outOffice, isMalta })
 
       if (newStatus !== r.status) {
         await supabase.from('attendance_records').update({ status: newStatus, updated_at: new Date().toISOString() }).eq('id', r.id)
