@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import * as XLSX from 'xlsx'
+import { isOfficeLocation, classifyClockedStatus } from '@/lib/attendance/location'
 
 async function fileToText(file: File): Promise<string> {
   if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
@@ -12,14 +13,6 @@ async function fileToText(file: File): Promise<string> {
   return await file.text()
 }
 
-const OFFICE_LAT = 35.9222072, OFFICE_LNG = 14.4878368, OFFICE_KM = 0.12
-function gpsKm(lat1: number, lng1: number, lat2: number, lng2: number) {
-  const R = 6371, dLat = (lat2-lat1)*Math.PI/180, dLng = (lng2-lng1)*Math.PI/180
-  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2
-  return R*2*Math.atan2(Math.sqrt(a), Math.sqrt(1-a))
-}
-function isOfficeGps(lat: number|null, lng: number|null) { return lat && lng ? gpsKm(lat, lng, OFFICE_LAT, OFFICE_LNG) <= OFFICE_KM : false }
-function isOfficeName(n: string|null) { return n ? n.toLowerCase().includes('head office') || n.toLowerCase().includes('office') : false }
 function parseTime(v: string) { return /^\d{1,2}:\d{2}$/.test(v?.trim() || '') ? v.trim() + ':00' : null }
 function toMin(t: string|null) { if (!t) return null; const [h, m] = t.split(':').map(Number); return h * 60 + m }
 
@@ -44,7 +37,7 @@ export async function POST(req: NextRequest) {
 
     if (fileType === 'clockings') {
       const lines = text.split(/\r?\n/).slice(1)
-      type Row = { code: string; firstName: string; lastName: string; date: string; timeIn: string|null; timeOut: string|null; hours: number; locationIn: string|null; latIn: number|null; lngIn: number|null; locationOut: string|null; latOut: number|null; lngOut: number|null; isBroken: boolean; isActive: boolean; unit: string }
+      type Row = { code: string; firstName: string; lastName: string; date: string; timeIn: string|null; timeOut: string|null; hours: number; locationIn: string|null; latIn: number|null; lngIn: number|null; locationOut: string|null; latOut: number|null; lngOut: number|null; unit: string }
       const rows: Row[] = []
       for (const line of lines) {
         if (!line.trim()) continue
@@ -56,7 +49,6 @@ export async function POST(req: NextRequest) {
           locationIn: c[7]?.trim()||null, latIn: parseFloat(c[8])||null, lngIn: parseFloat(c[9])||null,
           locationOut: c[10]?.trim()||null, latOut: parseFloat(c[11])||null, lngOut: parseFloat(c[12])||null,
           date, timeIn: parseTime(c[15]?.trim()||''), timeOut: parseTime(c[16]?.trim()||''), hours: parseFloat(c[17])||0,
-          isBroken: c[16]?.trim() === 'Broken Clocking', isActive: c[16]?.trim() === 'Active Clocking',
         })
       }
 
@@ -91,16 +83,11 @@ export async function POST(req: NextRequest) {
         }
 
         // Aggregate
-        const hasOffice = sessions.some(s => isOfficeName(s.locationIn) || isOfficeName(s.locationOut) || isOfficeGps(s.latIn, s.lngIn) || isOfficeGps(s.latOut, s.lngOut))
-        const allBroken = sessions.every(s => s.isBroken || s.isActive)
-        const hasActive = sessions.some(s => s.isActive)
+        const inOffice = sessions.some(s => isOfficeLocation(s.locationIn, s.latIn, s.lngIn))
+        const outOffice = sessions.some(s => isOfficeLocation(s.locationOut, s.latOut, s.lngOut))
         const group = empGroupMap.get(code) ?? 'unclassified'
         const isMaltaEmployee = group === 'office_malta'
-
-        let status = isMaltaEmployee ? 'wfh' : 'remote' // Malta employees not at office = WFH, Remote employees = remote
-        if (hasOffice) status = 'office'
-        else if (hasActive) status = 'active'
-        else if (allBroken) status = 'broken'
+        const status = classifyClockedStatus({ inOffice, outOffice, isMalta: isMaltaEmployee })
 
         const validIns = sessions.filter(s => s.timeIn).map(s => toMin(s.timeIn)).filter(Boolean) as number[]
         const validOuts = sessions.filter(s => s.timeOut).map(s => toMin(s.timeOut)).filter(Boolean) as number[]
@@ -108,17 +95,18 @@ export async function POST(req: NextRequest) {
         const latest = validOuts.length ? Math.max(...validOuts) : null
         const timeIn = earliest != null ? String(Math.floor(earliest/60)).padStart(2,'0') + ':' + String(earliest%60).padStart(2,'0') + ':00' : null
         const timeOut = latest != null ? String(Math.floor(latest/60)).padStart(2,'0') + ':' + String(latest%60).padStart(2,'0') + ':00' : null
-        // Broken/active clockings: null out hours and times for accurate averages
-        const isBrokenDay = status === 'broken' || status === 'active'
-        const hoursWorked = isBrokenDay ? null : (sessions.reduce((s, r) => s + (r.hours > 0 ? r.hours : 0), 0) || null)
+        // Keep timestamps so an incomplete day (missing clock-out) is detectable
+        // at render. Hours need a clock-out to be meaningful.
+        const hasClockOut = timeOut != null
+        const hoursWorked = hasClockOut ? (sessions.reduce((s, r) => s + (r.hours > 0 ? r.hours : 0), 0) || null) : null
         const first = sessions[0]
 
         await supabase.from('attendance_records').upsert({
           employee_id: empId, date,
-          location_in: first.locationIn, lat_in: first.latIn, lng_in: first.lngIn, time_in: isBrokenDay ? null : timeIn,
-          location_out: first.locationOut, lat_out: first.latOut, lng_out: first.lngOut, time_out: isBrokenDay ? null : timeOut,
+          location_in: first.locationIn, lat_in: first.latIn, lng_in: first.lngIn, time_in: timeIn,
+          location_out: first.locationOut, lat_out: first.latOut, lng_out: first.lngOut, time_out: timeOut,
           hours_worked: hoursWorked ? Math.round(hoursWorked * 100) / 100 : null,
-          status, comments: isBrokenDay ? 'Broken/active clocking — excluded from hours' : null, raw_data: sessions, updated_at: new Date().toISOString(),
+          status, comments: hasClockOut ? null : 'No clock-out', raw_data: sessions, updated_at: new Date().toISOString(),
         }, { onConflict: 'employee_id,date' })
         saved++
       }
