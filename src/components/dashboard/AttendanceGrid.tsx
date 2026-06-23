@@ -10,8 +10,6 @@ const STATUS_CONFIG: Record<string, { color: string; label: string }> = {
   sick:        { color: 'bg-red-400',     label: 'Sick' },
   no_clocking: { color: 'bg-zinc-400',    label: 'No Clocking' },
   unknown:     { color: 'bg-zinc-400',    label: 'Unknown' },
-  active:      { color: 'bg-amber-500',   label: 'No Clock-out' },
-  broken:      { color: 'bg-orange-400',  label: 'Broken Clocking' },
 }
 
 export interface GridDay {
@@ -22,6 +20,8 @@ export interface GridDay {
   timeIn?: string | null
   timeOut?: string | null
   flags?: string[]
+  incomplete?: boolean
+  locationMismatch?: boolean
   detectedTz?: string | null
 }
 
@@ -102,7 +102,7 @@ export default function AttendanceGrid({ employees, dates }: { employees: GridEm
                     const day = emp.days.find(d => d.date === date)
                     const s = day?.status ?? 'unknown'
                     const config = STATUS_CONFIG[s] ?? STATUS_CONFIG.unknown
-                    const hasFlag = day?.flags && day.flags.length > 0
+                    const ring = day?.locationMismatch ? 'ring-2 ring-red-500' : day?.incomplete ? 'ring-2 ring-yellow-400' : ''
                     const isCross = isRowHover || hoverCol === date
 
                     return (
@@ -113,7 +113,7 @@ export default function AttendanceGrid({ employees, dates }: { employees: GridEm
                         onMouseLeave={() => { setHoverRow(null); setHoverCol(null) }}
                       >
                         <div
-                          className={`w-[18px] h-[18px] rounded-[4px] mx-auto cursor-default ${config.color} transition-transform hover:scale-125 ${hasFlag ? 'ring-2 ring-rose-500' : ''}`}
+                          className={`w-[18px] h-[18px] rounded-[4px] mx-auto cursor-default ${config.color} transition-transform hover:scale-125 ${ring}`}
                           onMouseEnter={e => {
                             const rect = (e.target as HTMLElement).getBoundingClientRect()
                             setTooltip({ name: emp.name, day: day ?? { date, label: 'unknown', status: 'unknown' }, date, x: rect.left + rect.width / 2, y: rect.top - 8 })
@@ -152,8 +152,12 @@ export default function AttendanceGrid({ employees, dates }: { employees: GridEm
           </div>
         ))}
         <div className="flex items-center gap-1.5">
-          <div className="w-3 h-3 rounded-[3px] bg-zinc-400 ring-2 ring-rose-500" />
-          <span className="text-[10px] text-red-500">Location Mismatch</span>
+          <div className="w-3 h-3 rounded-[3px] bg-indigo-600 ring-2 ring-red-500" />
+          <span className="text-[10px] text-slate-600">Location mismatch</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className="w-3 h-3 rounded-[3px] bg-indigo-600 ring-2 ring-yellow-400" />
+          <span className="text-[10px] text-slate-600">Incomplete (no clock-out)</span>
         </div>
       </div>
 
