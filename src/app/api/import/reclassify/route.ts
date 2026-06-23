@@ -23,15 +23,32 @@ export async function POST(req: NextRequest) {
     const empGroup = new Map<string, string>()
     for (const e of employees ?? []) empGroup.set(e.id, e.group_type ?? 'unclassified')
 
-    // Get all attendance records in range
-    const { data: records } = await supabase
-      .from('attendance_records')
-      .select('id, employee_id, date, status, location_in, lat_in, lng_in, location_out, lat_out, lng_out, time_in, time_out')
-      .gte('date', dateFrom).lte('date', dateTo)
+    // Get all attendance records in range. PostgREST caps a single response at
+    // ~1000 rows, so page through with .range() until a short page comes back —
+    // otherwise records beyond the first 1000 would silently never reclassify.
+    type RecRow = {
+      id: string; employee_id: string; date: string; status: string
+      location_in: string | null; lat_in: number | null; lng_in: number | null
+      location_out: string | null; lat_out: number | null; lng_out: number | null
+      time_in: string | null; time_out: string | null
+    }
+    const PAGE = 1000
+    const records: RecRow[] = []
+    for (let from = 0; ; from += PAGE) {
+      const { data, error } = await supabase
+        .from('attendance_records')
+        .select('id, employee_id, date, status, location_in, lat_in, lng_in, location_out, lat_out, lng_out, time_in, time_out')
+        .gte('date', dateFrom).lte('date', dateTo)
+        .order('id', { ascending: true })
+        .range(from, from + PAGE - 1)
+      if (error || !data || data.length === 0) break
+      records.push(...(data as RecRow[]))
+      if (data.length < PAGE) break
+    }
 
     let reclassified = 0, unchanged = 0
 
-    for (const r of records ?? []) {
+    for (const r of records) {
       const group = empGroup.get(r.employee_id) ?? 'unclassified'
       const isMalta = group === 'office_malta'
 
@@ -76,7 +93,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    return NextResponse.json({ ok: true, reclassified, unchanged, noClockingGenerated, totalRecords: (records ?? []).length })
+    return NextResponse.json({ ok: true, reclassified, unchanged, noClockingGenerated, totalRecords: records.length })
   } catch (err) {
     console.error('[reclassify]', err)
     return NextResponse.json({ error: err instanceof Error ? err.message : 'Failed' }, { status: 500 })
