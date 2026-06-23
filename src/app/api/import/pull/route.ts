@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getStoredToken } from '@/lib/talexio/token-store'
+import { isOfficeLocation, classifyClockedStatus } from '@/lib/attendance/location'
 // @ts-expect-error - tz-lookup has no types
 import tzLookup from 'tz-lookup'
 
@@ -54,20 +55,6 @@ function wallClock(iso: string, _tz: string = 'Europe/Malta'): { date: string; t
 }
 
 
-const OFFICE_LAT = 35.9222072, OFFICE_LNG = 14.4878368, OFFICE_KM = 0.15
-
-function gpsKm(lat1: number, lng1: number, lat2: number, lng2: number) {
-  const R = 6371, dLat = (lat2 - lat1) * Math.PI / 180, dLng = (lng2 - lng1) * Math.PI / 180
-  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
-}
-function isOfficeGps(lat: number | null, lng: number | null) {
-  return lat != null && lng != null && !isNaN(lat) && !isNaN(lng) ? gpsKm(lat, lng, OFFICE_LAT, OFFICE_LNG) <= OFFICE_KM : false
-}
-function isOfficeName(n: string | null) {
-  if (!n) return false; const l = n.toLowerCase()
-  return l.includes('head office') || l === 'office' || l.includes('ta office')
-}
 
 /** JWT tokens (3 dot-separated base64 parts) go as `Authorization: Bearer`;
  *  legacy string tokens go as `talexio-api-token`. */
@@ -267,11 +254,12 @@ async function saveClockings(logs: TimeLog[]) {
     const isMalta = empRow.group_type === 'office_malta'
     const sessions = agg.logs
 
-    // Check if any session is at the office
-    const atOffice = sessions.some(s =>
-      isOfficeName(s.workLocationIn?.name ?? null) ||
-      isOfficeGps(s.locationLatIn, s.locationLongIn) ||
-      isOfficeGps(s.workLocationIn?.lat ?? null, s.workLocationIn?.long ?? null)
+    // Office if any session's clock-IN or clock-OUT is at the office.
+    const inOffice = sessions.some(s =>
+      isOfficeLocation(s.workLocationIn?.name ?? null, s.locationLatIn ?? s.workLocationIn?.lat ?? null, s.locationLongIn ?? s.workLocationIn?.long ?? null)
+    )
+    const outOffice = sessions.some(s =>
+      isOfficeLocation(s.workLocationOut?.name ?? null, s.locationLatOut ?? s.workLocationOut?.lat ?? null, s.locationLongOut ?? s.workLocationOut?.long ?? null)
     )
 
     // Aggregate from/to across sessions (earliest in, latest out) — in Malta time
@@ -296,12 +284,11 @@ async function saveClockings(logs: TimeLog[]) {
     // Detect broken: has from but no to
     const hasBroken = froms.length > 0 && tos.length === 0
 
-    // Status classification
-    let status: string
-    if (hasBroken) status = 'active' // no clock-out
-    else if (atOffice) status = 'office'
-    else if (sessions.length === 0) status = isMalta ? 'no_clocking' : 'unknown'
-    else status = isMalta ? 'wfh' : 'remote'
+    // Status by location (in OR out at office). "Incomplete" days are detected
+    // at render time from the missing time_out — they are no longer a status.
+    const status: string = sessions.length === 0
+      ? (isMalta ? 'no_clocking' : 'unknown')
+      : classifyClockedStatus({ inOffice, outOffice, isMalta })
 
     const first = sessions[0]
     const locIn = first.workLocationIn?.name ?? null
