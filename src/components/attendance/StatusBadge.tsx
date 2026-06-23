@@ -1,5 +1,3 @@
-import type { AttendanceStatus } from '@/lib/attendance/sync'
-
 const config: Record<string, { label: string; className: string }> = {
   office:      { label: 'Office',          className: 'bg-indigo-600 text-white' },
   wfh:         { label: 'WFH',            className: 'bg-sky-100 text-sky-700' },
