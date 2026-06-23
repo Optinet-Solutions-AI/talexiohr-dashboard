@@ -12,8 +12,6 @@ const STATUSES = [
   { value: 'remote', label: 'Remote' },
   { value: 'no_clocking', label: 'No Clocking' },
   { value: 'vacation', label: 'Leave' },
-  { value: 'active', label: 'Active' },
-  { value: 'broken', label: 'Broken' },
 ]
 
 interface Props {

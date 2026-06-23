@@ -5,6 +5,7 @@ import StatusDonutChart, { type StatusSlice } from '@/components/dashboard/Statu
 import AttendanceGrid, { type GridEmployee } from '@/components/dashboard/AttendanceGrid'
 import DashboardFilters from '@/components/dashboard/DashboardFilters'
 import { parseFilters, selectEmployees, groupCounts, type FilterableEmployee } from '@/lib/filters/employeeFilter'
+import { isOfficeLocation, dayAnomalies } from '@/lib/attendance/location'
 
 export const dynamic = 'force-dynamic'
 
@@ -47,16 +48,6 @@ type RecordRow = {
   employees: { id: string; full_name: string } | { id: string; full_name: string }[]
 }
 
-// Office GPS check
-const OFFICE_LAT = 35.9222072, OFFICE_LNG = 14.4878368, OFFICE_KM = 0.15
-function gpsKm(lat1: number, lng1: number, lat2: number, lng2: number) {
-  const R = 6371, dLat = (lat2 - lat1) * Math.PI / 180, dLng = (lng2 - lng1) * Math.PI / 180
-  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
-}
-function isAtOffice(lat: number | null, lng: number | null) {
-  return lat && lng ? gpsKm(lat, lng, OFFICE_LAT, OFFICE_LNG) <= OFFICE_KM : false
-}
 
 function groupByPeriod(recs: RecordRow[], period: string, from: string, to: string) {
   const fromDate = new Date(from + 'T00:00:00')
@@ -154,20 +145,19 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   const count = (s: string) => recs.filter(r => r.status === s).length
   const empCount = emps.length
 
-  // Broken clocking sub-types
-  const brokenNoClockOut = recs.filter(r => (r.status === 'broken' || r.status === 'active') && r.time_in && !r.time_out).length
-  const brokenAll = count('broken') + count('active')
-
-  // Location mismatch: status is "office" but GPS/location_out is not at the office
-  const locationMismatch = recs.filter(r => {
-    if (r.status !== 'office') return false
-    // Check if clock-out location is far from office
-    if (r.lat_out && r.lng_out && !isAtOffice(r.lat_out, r.lng_out)) return true
-    // Or if location_out explicitly says something other than office
-    const locOut = (r.location_out ?? '').toLowerCase()
-    if (locOut && !locOut.includes('office') && !locOut.includes('head office')) return true
-    return false
-  }).length
+  // Anomaly counts derived from each record (incomplete = missing a timestamp;
+  // location mismatch = clock-in office-ness differs from clock-out).
+  const anomalyTotals = recs.reduce(
+    (acc, r) => {
+      const inOffice = isOfficeLocation(r.location_in, r.lat_in, r.lng_in)
+      const outOffice = isOfficeLocation(r.location_out, r.lat_out, r.lng_out)
+      const a = dayAnomalies({ timeIn: r.time_in, timeOut: r.time_out, inOffice, outOffice })
+      if (a.incomplete) acc.incomplete++
+      if (a.locationMismatch) acc.mismatch++
+      return acc
+    },
+    { incomplete: 0, mismatch: 0 },
+  )
 
   const stats = [
     { label: 'Employees',   value: empCount },
@@ -176,8 +166,8 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     { label: 'Remote',      value: count('remote') },
     { label: 'On Leave',    value: count('vacation') + count('sick') },
     { label: 'No Clocking', value: count('no_clocking') },
-    { label: 'Broken',      value: brokenAll },
-    { label: 'Loc. Mismatch', value: locationMismatch },
+    { label: 'Incomplete',  value: anomalyTotals.incomplete },
+    { label: 'Loc. Mismatch', value: anomalyTotals.mismatch },
   ]
 
   const buckets = groupByPeriod(recs, period, from, to)
@@ -202,12 +192,13 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   const gridEmployees: GridEmployee[] = gridEmps.map(emp => {
     const empRecords = recs.filter(r => { const e = Array.isArray(r.employees) ? r.employees[0] : r.employees; return e?.id === emp.id })
     const days = empRecords.map(r => {
+      const inOffice = isOfficeLocation(r.location_in, r.lat_in, r.lng_in)
+      const outOffice = isOfficeLocation(r.location_out, r.lat_out, r.lng_out)
+      const { incomplete, locationMismatch } = dayAnomalies({ timeIn: r.time_in, timeOut: r.time_out, inOffice, outOffice })
       const flags: string[] = []
-      if ((r.status === 'broken' || r.status === 'active') && r.time_in && !r.time_out) flags.push('No clock-out')
-      if ((r.status === 'broken' || r.status === 'active') && (!r.time_in || r.time_out)) flags.push('Broken')
-      if (r.status === 'office' && r.lat_out && r.lng_out && !isAtOffice(r.lat_out, r.lng_out)) flags.push('Clock-out location mismatch')
-      if (r.status === 'office' && r.lat_in && r.lng_in && !isAtOffice(r.lat_in, r.lng_in)) flags.push('Clock-in location mismatch')
-      return { date: r.date, label: r.status, status: r.status, hours: r.hours_worked, timeIn: r.time_in, timeOut: r.time_out, flags, detectedTz: r.detected_timezone ?? null }
+      if (locationMismatch) flags.push('Location mismatch (started/ended in different places)')
+      if (incomplete) flags.push(r.time_in ? 'Incomplete — no clock-out' : 'Incomplete — no clock-in')
+      return { date: r.date, label: r.status, status: r.status, hours: r.hours_worked, timeIn: r.time_in, timeOut: r.time_out, flags, incomplete, locationMismatch, detectedTz: r.detected_timezone ?? null }
     })
 
     // Completed workdays = days with valid clock-in AND clock-out (not broken/active)
