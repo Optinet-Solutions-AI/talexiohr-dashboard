@@ -35,18 +35,24 @@ describe('classifyClockedStatus', () => {
 
 describe('dayAnomalies', () => {
   it('flags incomplete when exactly one timestamp is present', () => {
-    expect(dayAnomalies({ timeIn: '09:00', timeOut: null, inOffice: true, outOffice: false }).incomplete).toBe(true)
-    expect(dayAnomalies({ timeIn: null, timeOut: '17:00', inOffice: false, outOffice: true }).incomplete).toBe(true)
-    expect(dayAnomalies({ timeIn: '09:00', timeOut: '17:00', inOffice: true, outOffice: true }).incomplete).toBe(false)
-    expect(dayAnomalies({ timeIn: null, timeOut: null, inOffice: false, outOffice: false }).incomplete).toBe(false)
+    expect(dayAnomalies({ timeIn: '09:00', timeOut: null, inOffice: true, outOffice: false, inLocationKnown: true, outLocationKnown: false }).incomplete).toBe(true)
+    expect(dayAnomalies({ timeIn: null, timeOut: '17:00', inOffice: false, outOffice: true, inLocationKnown: false, outLocationKnown: true }).incomplete).toBe(true)
+    expect(dayAnomalies({ timeIn: '09:00', timeOut: '17:00', inOffice: true, outOffice: true, inLocationKnown: true, outLocationKnown: true }).incomplete).toBe(false)
+    expect(dayAnomalies({ timeIn: null, timeOut: null, inOffice: false, outOffice: false, inLocationKnown: false, outLocationKnown: false }).incomplete).toBe(false)
   })
-  it('flags locationMismatch only when both present and office-ness differs', () => {
-    expect(dayAnomalies({ timeIn: '09:00', timeOut: '17:00', inOffice: false, outOffice: true }).locationMismatch).toBe(true)
-    expect(dayAnomalies({ timeIn: '09:00', timeOut: '17:00', inOffice: true, outOffice: false }).locationMismatch).toBe(true)
-    expect(dayAnomalies({ timeIn: '09:00', timeOut: '17:00', inOffice: true, outOffice: true }).locationMismatch).toBe(false)
-    expect(dayAnomalies({ timeIn: '09:00', timeOut: '17:00', inOffice: false, outOffice: false }).locationMismatch).toBe(false)
+  it('flags locationMismatch only when both present, both locations known, and office-ness differs', () => {
+    expect(dayAnomalies({ timeIn: '09:00', timeOut: '17:00', inOffice: false, outOffice: true, inLocationKnown: true, outLocationKnown: true }).locationMismatch).toBe(true)
+    expect(dayAnomalies({ timeIn: '09:00', timeOut: '17:00', inOffice: true, outOffice: false, inLocationKnown: true, outLocationKnown: true }).locationMismatch).toBe(true)
+    expect(dayAnomalies({ timeIn: '09:00', timeOut: '17:00', inOffice: true, outOffice: true, inLocationKnown: true, outLocationKnown: true }).locationMismatch).toBe(false)
+    expect(dayAnomalies({ timeIn: '09:00', timeOut: '17:00', inOffice: false, outOffice: false, inLocationKnown: true, outLocationKnown: true }).locationMismatch).toBe(false)
+  })
+  it('never flags locationMismatch when out-location is unknown (false positive fix)', () => {
+    expect(dayAnomalies({ timeIn: '09:00', timeOut: '17:00', inOffice: true, outOffice: false, inLocationKnown: true, outLocationKnown: false }).locationMismatch).toBe(false)
+  })
+  it('flags locationMismatch when both timestamps present and both locations known and office-ness differs', () => {
+    expect(dayAnomalies({ timeIn: '09:00', timeOut: '17:00', inOffice: true, outOffice: false, inLocationKnown: true, outLocationKnown: true }).locationMismatch).toBe(true)
   })
   it('never flags locationMismatch for an incomplete day', () => {
-    expect(dayAnomalies({ timeIn: '09:00', timeOut: null, inOffice: false, outOffice: true }).locationMismatch).toBe(false)
+    expect(dayAnomalies({ timeIn: '09:00', timeOut: null, inOffice: false, outOffice: true, inLocationKnown: true, outLocationKnown: false }).locationMismatch).toBe(false)
   })
 })

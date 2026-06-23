@@ -48,7 +48,6 @@ type RecordRow = {
   employees: { id: string; full_name: string } | { id: string; full_name: string }[]
 }
 
-
 function groupByPeriod(recs: RecordRow[], period: string, from: string, to: string) {
   const fromDate = new Date(from + 'T00:00:00')
   const toDate = new Date(to + 'T00:00:00')
@@ -151,7 +150,9 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     (acc, r) => {
       const inOffice = isOfficeLocation(r.location_in, r.lat_in, r.lng_in)
       const outOffice = isOfficeLocation(r.location_out, r.lat_out, r.lng_out)
-      const a = dayAnomalies({ timeIn: r.time_in, timeOut: r.time_out, inOffice, outOffice })
+      const inLocationKnown = Boolean(r.location_in) || r.lat_in != null
+      const outLocationKnown = Boolean(r.location_out) || r.lat_out != null
+      const a = dayAnomalies({ timeIn: r.time_in, timeOut: r.time_out, inOffice, outOffice, inLocationKnown, outLocationKnown })
       if (a.incomplete) acc.incomplete++
       if (a.locationMismatch) acc.mismatch++
       return acc
@@ -194,7 +195,9 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     const days = empRecords.map(r => {
       const inOffice = isOfficeLocation(r.location_in, r.lat_in, r.lng_in)
       const outOffice = isOfficeLocation(r.location_out, r.lat_out, r.lng_out)
-      const { incomplete, locationMismatch } = dayAnomalies({ timeIn: r.time_in, timeOut: r.time_out, inOffice, outOffice })
+      const inLocationKnown = Boolean(r.location_in) || r.lat_in != null
+      const outLocationKnown = Boolean(r.location_out) || r.lat_out != null
+      const { incomplete, locationMismatch } = dayAnomalies({ timeIn: r.time_in, timeOut: r.time_out, inOffice, outOffice, inLocationKnown, outLocationKnown })
       const flags: string[] = []
       if (locationMismatch) flags.push('Location mismatch (started/ended in different places)')
       if (incomplete) flags.push(r.time_in ? 'Incomplete — no clock-out' : 'Incomplete — no clock-in')

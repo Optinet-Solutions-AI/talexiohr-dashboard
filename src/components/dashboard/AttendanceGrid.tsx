@@ -157,7 +157,7 @@ export default function AttendanceGrid({ employees, dates }: { employees: GridEm
         </div>
         <div className="flex items-center gap-1.5">
           <div className="w-3 h-3 rounded-[3px] bg-indigo-600 ring-2 ring-yellow-400" />
-          <span className="text-[10px] text-slate-600">Incomplete (no clock-out)</span>
+          <span className="text-[10px] text-slate-600">Incomplete (missing clock-in/out)</span>
         </div>
       </div>
 

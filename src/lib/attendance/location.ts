@@ -33,12 +33,13 @@ export function classifyClockedStatus(
 
 /** Render-time anomaly flags derived from the stored day. */
 export function dayAnomalies(
-  { timeIn, timeOut, inOffice, outOffice }: { timeIn: string | null; timeOut: string | null; inOffice: boolean; outOffice: boolean },
+  { timeIn, timeOut, inOffice, outOffice, inLocationKnown, outLocationKnown }:
+  { timeIn: string | null; timeOut: string | null; inOffice: boolean; outOffice: boolean; inLocationKnown: boolean; outLocationKnown: boolean },
 ): { incomplete: boolean; locationMismatch: boolean } {
   const hasIn = Boolean(timeIn)
   const hasOut = Boolean(timeOut)
   return {
     incomplete: hasIn !== hasOut,
-    locationMismatch: hasIn && hasOut && inOffice !== outOffice,
+    locationMismatch: hasIn && hasOut && inLocationKnown && outLocationKnown && inOffice !== outOffice,
   }
 }

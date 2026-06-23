@@ -8,7 +8,7 @@ import { isOfficeLocation, classifyClockedStatus } from '@/lib/attendance/locati
  * - Malta Office employee + at office → office
  * - Malta Office employee + not at office → wfh
  * - Remote employee → remote
- * - Broken/active stay as-is
+ * - Broken/active are reclassified by location (in or out at office)
  * - Also generates no_clocking for Malta employees on missing workdays
  */
 export async function POST(req: NextRequest) {

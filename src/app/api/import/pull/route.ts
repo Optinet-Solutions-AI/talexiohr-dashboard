@@ -54,8 +54,6 @@ function wallClock(iso: string, _tz: string = 'Europe/Malta'): { date: string; t
   return { date: `${yyyy}-${mm}-${dd}`, time: `${hh}:${mi}:${ss}` }
 }
 
-
-
 /** JWT tokens (3 dot-separated base64 parts) go as `Authorization: Bearer`;
  *  legacy string tokens go as `talexio-api-token`. */
 function looksLikeJwt(t: string): boolean {
