@@ -34,3 +34,20 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+## User accounts
+
+Sign-in is required for every dashboard page and API route (see `src/proxy.ts`).
+There is no self-service signup: an administrator provisions accounts with
+
+```bash
+node scripts/provision-users.mjs --admin chris@example.com --user a@example.com,b@example.com --disable-others
+```
+
+Each account gets a random 16-character temporary password, printed once by
+the script. On first sign-in the user is sent to `/change-password` and cannot
+reach anything else until they set a password that meets the policy in
+`src/lib/auth/password.ts` (12+ chars, upper, lower, digit, symbol).
+
+Roles live in `app_metadata.role` (`admin` or `user`). `--disable-others`
+bans every existing account that is neither listed nor an admin.

@@ -14,7 +14,15 @@ import {
   Sparkles,
   Menu,
   X,
+  KeyRound,
+  LogOut,
 } from 'lucide-react'
+import { logout } from '@/app/dashboard/actions'
+
+export interface SidebarUser {
+  email: string
+  role: 'admin' | 'user'
+}
 
 const navItems = [
   { label: 'Dashboard',  href: '/dashboard',            icon: LayoutDashboard },
@@ -27,7 +35,7 @@ const navItems = [
   { label: 'Settings',   href: '/dashboard/settings',    icon: Settings        },
 ]
 
-function NavContent({ pathname, onNavigate }: { pathname: string; onNavigate?: () => void }) {
+function NavContent({ pathname, user, onNavigate }: { pathname: string; user: SidebarUser; onNavigate?: () => void }) {
   return (
     <>
       <div className="mb-8 px-3">
@@ -54,11 +62,39 @@ function NavContent({ pathname, onNavigate }: { pathname: string; onNavigate?: (
           )
         })}
       </nav>
+
+      <div className="mt-6 border-t border-white/10 pt-4 px-1">
+        <div className="flex items-center gap-2 px-2 mb-2">
+          <p className="flex-1 truncate text-xs text-indigo-200" title={user.email}>{user.email}</p>
+          {user.role === 'admin' && (
+            <span className="shrink-0 rounded bg-white/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
+              Admin
+            </span>
+          )}
+        </div>
+        <Link
+          href="/change-password"
+          onClick={onNavigate}
+          className="flex items-center gap-3 rounded-lg px-3 py-2 text-xs font-medium text-indigo-200 hover:bg-white/10 hover:text-white transition-colors"
+        >
+          <KeyRound size={14} className="text-indigo-300" />
+          Change password
+        </Link>
+        <form action={logout}>
+          <button
+            type="submit"
+            className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-xs font-medium text-indigo-200 hover:bg-white/10 hover:text-white transition-colors"
+          >
+            <LogOut size={14} className="text-indigo-300" />
+            Sign out
+          </button>
+        </form>
+      </div>
     </>
   )
 }
 
-export default function Sidebar() {
+export default function Sidebar({ user }: { user: SidebarUser }) {
   const pathname = usePathname()
   const [open, setOpen] = useState(false)
 
@@ -83,14 +119,14 @@ export default function Sidebar() {
             >
               <X size={18} />
             </button>
-            <NavContent pathname={pathname} onNavigate={() => setOpen(false)} />
+            <NavContent pathname={pathname} user={user} onNavigate={() => setOpen(false)} />
           </aside>
         </div>
       )}
 
       {/* Desktop sidebar */}
       <aside className="hidden lg:flex w-56 flex-col bg-indigo-950 py-6 px-4 shrink-0">
-        <NavContent pathname={pathname} />
+        <NavContent pathname={pathname} user={user} />
       </aside>
     </>
   )
